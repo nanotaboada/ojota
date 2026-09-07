@@ -1,0 +1,58 @@
+# ojota — configuración
+# Copiar a ojota.conf y completar. ojota.conf NO se versiona (tiene la
+# contraseña RTSP y el topic de ntfy). Formato KEY=VALUE: lo leen tanto
+# bash (source) como el daemon Python. Sin espacios alrededor del "=".
+
+# ── Cámara ────────────────────────────────────────────────────────────
+# Stream principal (grabación, se copia sin re-encodear). La ruta RTSP
+# depende del fabricante; verificá con:
+#   ffprobe -rtsp_transport tcp -i "rtsp://USER:PASS@CAMARA_IP:554/RUTA"
+RTSP_URL="rtsp://USUARIO:CLAVE@CAMARA_IP:554/stream"
+# Substream de baja resolución (solo detección). Dejar vacío para usar
+# el principal también para detectar.
+RTSP_SUBSTREAM_URL="rtsp://USUARIO:CLAVE@CAMARA_IP:554/substream"
+RTSP_TRANSPORT="tcp"
+
+# ── Detección de movimiento ───────────────────────────────────────────
+DETECT_FPS=3                # frames/s a analizar (más = más CPU)
+DETECT_WIDTH=320            # ancho al que se reduce antes de comparar
+PIXEL_DELTA=18              # 0-255: cuánto cambia un píxel para "contar"
+MOTION_AREA_PCT=1.5         # % de píxeles cambiados para disparar evento
+MOTION_MIN_FRAMES=3         # frames seguidos sobre el umbral para disparar
+LIGHT_CHANGE_PCT=70         # si cambia más que esto de golpe = cambio de
+                           # luz (IR día/noche, luz que se prende): ignorar
+DETECT_WARMUP_SECONDS=15    # ignorar movimiento los primeros N s tras
+                           # (re)conectar: el H.264 tarda en estabilizar
+DETECT_ROI="0,0,1,1"       # zona donde se busca movimiento (izq,arriba,der,
+                           # abajo en fracciones 0-1). 0,0,1,1 = frame entero.
+                           # NO recorta el video: el clip siempre es completo.
+
+# ── Perfiles casa / afuera ────────────────────────────────────────────
+# El daemon corre siempre. `ojota afuera` / `ojota casa` cambian el perfil.
+DEFAULT_PROFILE=afuera     # perfil al bootear (fail-safe: si se reinicia
+                           # mientras no estás, queda armado)
+CASA_DETECT_ROI="0,0,1,1"  # ROI cuando el perfil es "casa" (a futuro:
+                           # acotar a una zona más chica). En "casa" además
+                           # las notificaciones de movimiento van en silencio.
+
+# ── Grabación del clip ────────────────────────────────────────────────
+SEGMENT_SECONDS=4           # tamaño de cada segmento del ring buffer
+PRECAPTURE_SECONDS=8        # segundos antes del evento a incluir
+POSTCAPTURE_SECONDS=10      # seguir grabando tras el último movimiento
+BUFFER_RETENTION_SECONDS=60 # cuánto historial mantener en el ring buffer
+
+# ── Notificaciones push (ntfy.sh) — Etapa 4 ───────────────────────────
+NTFY_SERVER="https://ntfy.sh"
+NTFY_TOPIC="ojota-CAMBIAR-POR-UNO-ALEATORIO"
+NOTIFY_SILENCE_MINUTES=5    # ventana anti-spam (SOLO notificaciones)
+CAMERA_DOWN_ALERT_MINUTES=5 # alerta si la cámara no responde por N min
+
+# ── Google Drive (rclone) — Etapa 3 ───────────────────────────────────
+RCLONE_REMOTE="gdrive"
+RCLONE_PATH="ojota"
+RETENTION_DAYS=30           # borrar de Drive clips más viejos que esto
+
+# ── Rutas ─────────────────────────────────────────────────────────────
+# Normalmente no hace falta: los scripts detectan la raíz del repo solos.
+# Descomentar solo para forzar otra ubicación.
+#OJOTA_HOME="$HOME/ojota"
