@@ -1,6 +1,7 @@
 # Secretos y datos locales — nunca versionar
 config/ojota.conf
 config/profile
+config/rclone.conf
 clips/
 logs/
 *.log

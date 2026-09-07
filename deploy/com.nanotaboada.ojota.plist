@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Plantilla. `bin/ojota install` reemplaza los __PLACEHOLDERS__ y copia
+     el resultado a /Library/LaunchDaemons/. No editar el instalado a mano.
+
+     Corre como root (sin UserName): en macOS Sequoia, un LaunchDaemon que
+     baja a un usuario queda bloqueado por "Local Network Privacy" y no
+     puede llegar a la cámara en la LAN. Los daemons de sistema que corren
+     como root están exentos. -->
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.nanotaboada.ojota</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>__OJOTA_DIR__/.venv/bin/python3</string>
+        <string>__OJOTA_DIR__/bin/ojota-daemon.py</string>
+    </array>
+
+    <key>RunAtLoad</key>
+    <true/>
+
+    <!-- Reinicia solo si termina mal (crash). Un `stop` ordenado
+         (SIGTERM -> exit 0) no lo revive. -->
+    <key>KeepAlive</key>
+    <dict>
+        <key>SuccessfulExit</key>
+        <false/>
+    </dict>
+    <key>ThrottleInterval</key>
+    <integer>15</integer>
+    <key>ExitTimeOut</key>
+    <integer>15</integer>
+
+    <!-- 022: los archivos que cree root quedan legibles por el usuario. -->
+    <key>Umask</key>
+    <integer>18</integer>
+
+    <key>WorkingDirectory</key>
+    <string>__OJOTA_DIR__</string>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>HOME</key>
+        <string>__USER_HOME__</string>
+        <key>PATH</key>
+        <string>/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+        <key>RCLONE_CONFIG</key>
+        <string>__OJOTA_DIR__/config/rclone.conf</string>
+    </dict>
+
+    <key>StandardOutPath</key>
+    <string>__OJOTA_DIR__/logs/launchd.out.log</string>
+    <key>StandardErrorPath</key>
+    <string>__OJOTA_DIR__/logs/launchd.err.log</string>
+
+    <key>ProcessType</key>
+    <string>Background</string>
+    <key>LowPriorityIO</key>
+    <true/>
+</dict>
+</plist>

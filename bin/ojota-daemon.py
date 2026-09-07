@@ -152,13 +152,8 @@ class Daemon:
                           self.active_roi, "on" if self.notify_enabled else "off")
 
     def _profile_watch(self):
-        # asegurar que el archivo exista
-        if not os.path.exists(self.c.profile_file):
-            try:
-                with open(self.c.profile_file, "w") as fh:
-                    fh.write(self.profile + "\n")
-            except OSError as exc:
-                self.log.warning("no pude crear profile file: %s", exc)
+        # el archivo lo escribe `bin/ojota casa|afuera` (como usuario); el
+        # daemon solo lo lee. Si no existe, se usa DEFAULT_PROFILE.
         while not self.stop.is_set():
             self._apply_profile(self._read_profile())
             self.stop.wait(2)
@@ -499,6 +494,9 @@ def _read_exact(stream, n):
 
 
 def main():
+    # corre como root bajo launchd: que los archivos queden legibles
+    # por el usuario (el plist ya pone Umask, esto es por las dudas)
+    os.umask(0o022)
     raw = load_conf(CONF_PATH)
     conf = Conf(raw)
     log = setup_logging(conf.log_dir)

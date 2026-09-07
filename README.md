@@ -92,9 +92,23 @@ chmod 600 config/ojota.conf
 # 5. Probar la detección en vivo y calibrar umbrales
 .venv/bin/python bin/ojota-tune.py           # pasá por delante de la cámara
 
-# 6. rclone / Google Drive   -> ver Etapa 3 (pendiente)
-# 7. Instalar el LaunchDaemon -> ver Etapa 5 (pendiente)
+# 6. Google Drive: instalar rclone y configurar el remote
+brew install rclone
+rclone config          # remote "gdrive", tipo drive, scope drive.file,
+                       # con tu propio client_id de OAuth (ver más abajo)
+
+# 7. Instalar como servicio 24/7
+sudo bin/ojota install
+sudo pmset -a sleep 0 disablesleep 1
 ```
+
+### Google Drive / OAuth
+
+Creá un client_id propio (el compartido de rclone se retira en 2026) y
+**publicá la app en producción** — si queda en "Testing", el token vence
+cada 7 días. Guía: <https://rclone.org/drive/#making-your-own-client-id>.
+Usás el repo público como URL de home y `PRIVACY.md` como política de
+privacidad. Scope `drive.file`: rclone solo toca los archivos que crea.
 
 ### Encontrar el substream de tu cámara
 
@@ -144,7 +158,7 @@ Todo en `config/ojota.conf` (formato `KEY=VALUE`, lo leen bash y Python).
 ```sh
 bin/ojota casa            # perfil casa: notificaciones de movimiento en silencio
 bin/ojota afuera          # perfil afuera: notificaciones activas (default)
-bin/ojota status          # perfil, daemon, buffer, últimos eventos, errores, Drive
+bin/ojota status          # perfil, daemon, servicio, buffer, eventos, errores, Drive
 bin/ojota start | stop | restart
 bin/ojota logs [N]        # últimas N líneas del log
 bin/ojota test-notify     # mandar una notificación de prueba
@@ -155,6 +169,27 @@ bin/ojota test-notify     # mandar una notificación de prueba
 
 Cambiar de perfil también se puede escribiendo `casa` / `afuera` en
 `config/profile`; el daemon lo toma en ~2 s.
+
+### Como servicio (24/7, arranca al bootear)
+
+```sh
+sudo bin/ojota install               # instala el LaunchDaemon (nivel sistema)
+sudo pmset -a sleep 0 disablesleep 1  # que la Mac no se duerma
+sudo bin/ojota uninstall              # lo quita
+```
+
+Corre a nivel sistema (arranca sin login) **como root**: en macOS Sequoia,
+un LaunchDaemon que baja a un usuario queda bloqueado por *Local Network
+Privacy* y no puede llegar a la cámara en la LAN ("No route to host"); los
+daemons de sistema que corren como root están exentos. `install` copia la
+config de rclone a `config/rclone.conf` (root, 600) para no tocar la tuya
+personal cuando el daemon refresca el token. Los clips y logs quedan de
+root pero legibles (`umask 022`); borrarlos a mano pide sudo, la retención
+automática no.
+
+`KeepAlive` lo reinicia solo si crashea; un `stop` ordenado no lo revive.
+Con el servicio instalado, `start` / `stop` / `restart` usan `launchctl`
+(piden sudo).
 
 ### Notificaciones (ntfy.sh)
 
@@ -176,6 +211,9 @@ seguidos **sin afectar la grabación**.
 - **Falsos positivos por luz**: bajar `LIGHT_CHANGE_PCT` o acotar `DETECT_ROI`.
 - **La cámara se cae**: el daemon reintenta con backoff exponencial y manda
   una alerta si no hay frames por `CAMERA_DOWN_ALERT_MINUTES`.
+- **"No route to host" en el log del servicio**: el daemon no corre como
+  root (Local Network Privacy de Sequoia). Reinstalá con `sudo bin/ojota
+  install` — el plist actual ya corre como root.
 - **Un clip no subió**: queda en `clips/pending/`; el daemon reintenta cada
   `PENDING_RETRY_MINUTES`. El local no se borra hasta confirmar la subida.
 - **Clip cortado**: subir `POSTCAPTURE_SECONDS` / `PRECAPTURE_SECONDS`.
@@ -190,8 +228,8 @@ seguidos **sin afectar la grabación**.
 | 2 — Captura y detección | ✅ |
 | 3 — Google Drive (rclone) | ✅ |
 | 4 — Integración y notificaciones (ntfy) | ✅ |
-| 5 — Daemon (LaunchDaemon) | ⏳ |
-| 6 — Mantenimiento (retención + estado) | ⏳ |
+| 5 — Daemon (LaunchDaemon) | ✅ |
+| 6 — Mantenimiento (retención + heartbeat) | ⏳ |
 
 **Ajustes pendientes:**
 

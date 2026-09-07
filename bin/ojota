@@ -1,15 +1,17 @@
 #!/bin/bash
 # ojota — control del sistema
 #
-#   ojota casa | afuera        cambiar de perfil
-#   ojota status               estado general
-#   ojota start | stop | restart   (corrida manual; ver Etapa 5 para el servicio)
-#   ojota logs [N]             últimas N líneas del log (default 40)
-#   ojota test-notify          mandar una notificación de prueba
+#   ojota casa | afuera          cambiar de perfil
+#   ojota status                 estado general
+#   ojota start | stop | restart arrancar / parar / reiniciar el daemon
+#   ojota logs [N]               últimas N líneas del log (default 40)
+#   ojota test-notify            mandar una notificación de prueba
+#   ojota install | uninstall    instalar / quitar el servicio (LaunchDaemon, pide sudo)
 
 set -u
 
-HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+SELF="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/$(basename "${BASH_SOURCE[0]}")"
+HERE="$(cd "$(dirname "$SELF")/.." && pwd)"
 CONF="${OJOTA_CONF:-$HERE/config/ojota.conf}"
 # shellcheck disable=SC1090
 [ -f "$CONF" ] && . "$CONF"
@@ -19,12 +21,19 @@ LOG="$HERE/logs/ojota.log"
 HOOK_LOG="$HERE/logs/ojota-hook.log"
 PY="$HERE/.venv/bin/python3"
 DAEMON="$HERE/bin/ojota-daemon.py"
+LABEL="com.nanotaboada.ojota"
+PLIST_SYSTEM="/Library/LaunchDaemons/${LABEL}.plist"
+PLIST_TEMPLATE="$HERE/deploy/${LABEL}.plist"
 : "${DEFAULT_PROFILE:=afuera}"
 : "${RCLONE_REMOTE:=gdrive}"
 : "${RCLONE_PATH:=ojota}"
 
-daemon_pid() { pgrep -f "$DAEMON" | head -1; }
+installed()   { [ -f "$PLIST_SYSTEM" ]; }
+is_root()     { [ "$(id -u)" = 0 ]; }
+daemon_pid()  { pgrep -f "$DAEMON" | head -1; }
+need_root()   { is_root || exec sudo "$SELF" "$@"; }
 
+# ── perfil ─────────────────────────────────────────────────────────────
 set_profile() {
     echo "$1" >"$PROFILE_FILE"
     if [ "$1" = casa ]; then
@@ -35,6 +44,7 @@ set_profile() {
     echo "   (el daemon lo toma en ~2s)"
 }
 
+# ── estado ─────────────────────────────────────────────────────────────
 cmd_status() {
     local pid cur segs pend
     pid="$(daemon_pid)"
@@ -47,9 +57,14 @@ cmd_status() {
     else
         echo "   daemon:   🔴 detenido"
     fi
+    if installed; then
+        echo "   servicio: 📌 instalado (LaunchDaemon, arranca al bootear)"
+    else
+        echo "   servicio: ⚙️  no instalado (corrida manual — ver 'ojota install')"
+    fi
     segs="$(ls "$HERE/clips/buffer/"*.ts 2>/dev/null | wc -l | tr -d ' ')"
     pend="$(ls "$HERE/clips/pending/"*.mp4 2>/dev/null | wc -l | tr -d ' ')"
-    [ "${pend:-0}" -gt 0 ] && pend="⚠️  ${pend}" || pend="${pend}"
+    [ "${pend:-0}" -gt 0 ] && pend="⚠️  ${pend}"
     echo "   buffer:   ${segs} segmentos  ·  pendientes de subir: ${pend}"
 
     echo
@@ -77,37 +92,128 @@ cmd_status() {
     fi
 }
 
+# ── start / stop / restart ────────────────────────────────────────────
 cmd_start() {
-    [ -n "$(daemon_pid)" ] && { echo "ya está corriendo (pid $(daemon_pid))"; return; }
-    [ -x "$PY" ] || { echo "falta el venv ($PY). Ver README, paso 2." >&2; exit 1; }
-    nohup "$PY" "$DAEMON" >/dev/null 2>&1 &
-    sleep 2
-    [ -n "$(daemon_pid)" ] && echo "👁  daemon arrancado (pid $(daemon_pid))" \
-        || { echo "🔴 no arrancó, mirá $LOG" >&2; exit 1; }
+    if installed; then
+        need_root start
+        launchctl kickstart -p "system/$LABEL" >/dev/null 2>&1 \
+            || launchctl bootstrap system "$PLIST_SYSTEM" 2>/dev/null
+        sleep 2; svc_report
+    else
+        [ -n "$(daemon_pid)" ] && { echo "ya está corriendo (pid $(daemon_pid))"; return; }
+        [ -x "$PY" ] || { echo "falta el venv ($PY). Ver README, paso 2." >&2; exit 1; }
+        nohup "$PY" "$DAEMON" >/dev/null 2>&1 &
+        sleep 2
+        [ -n "$(daemon_pid)" ] && echo "👁  daemon arrancado (pid $(daemon_pid))" \
+            || { echo "🔴 no arrancó, mirá $LOG" >&2; exit 1; }
+    fi
 }
 
 cmd_stop() {
-    local pid; pid="$(daemon_pid)"
-    [ -z "$pid" ] && { echo "no estaba corriendo"; return; }
-    kill -TERM "$pid"
-    for _ in $(seq 1 20); do sleep 0.5; [ -z "$(daemon_pid)" ] && break; done
-    [ -z "$(daemon_pid)" ] && echo "🛑 detenido" || { kill -9 "$pid"; echo "🛑 forzado"; }
+    if installed; then
+        need_root stop
+        launchctl kill SIGTERM "system/$LABEL" 2>/dev/null
+        for _ in $(seq 1 20); do sleep 0.5; [ -z "$(daemon_pid)" ] && break; done
+        [ -z "$(daemon_pid)" ] && echo "🛑 detenido (el servicio sigue instalado)" \
+            || echo "⚠️  no frenó — probá 'ojota restart'"
+    else
+        local pid; pid="$(daemon_pid)"
+        [ -z "$pid" ] && { echo "no estaba corriendo"; return; }
+        kill -TERM "$pid"
+        for _ in $(seq 1 20); do sleep 0.5; [ -z "$(daemon_pid)" ] && break; done
+        [ -z "$(daemon_pid)" ] && echo "🛑 detenido" || { kill -9 "$pid"; echo "🛑 forzado"; }
+    fi
 }
 
+cmd_restart() {
+    if installed; then
+        need_root restart
+        launchctl kickstart -kp "system/$LABEL" >/dev/null 2>&1
+        sleep 2; svc_report
+    else
+        cmd_stop; cmd_start
+    fi
+}
+
+svc_report() {
+    if [ -n "$(daemon_pid)" ]; then
+        echo "👁  servicio corriendo (pid $(daemon_pid))"
+    else
+        echo "🔴 el servicio no levantó — mirá $HERE/logs/launchd.err.log" >&2
+    fi
+}
+
+# ── install / uninstall ──────────────────────────────────────────────
+cmd_install() {
+    need_root install
+    [ -f "$PLIST_TEMPLATE" ] || { echo "falta $PLIST_TEMPLATE" >&2; exit 1; }
+    local user home src_rclone
+    user="${SUDO_USER:-$(id -un)}"
+    home="$(dscl . -read "/Users/$user" NFSHomeDirectory 2>/dev/null | awk '{print $2}')"
+    home="${home:-/Users/$user}"
+
+    # copia dedicada de la config de rclone (el daemon corre como root y
+    # refresca el token; así no le cambia el dueño a la tuya personal)
+    src_rclone="$home/.config/rclone/rclone.conf"
+    if [ -f "$src_rclone" ]; then
+        cp "$src_rclone" "$HERE/config/rclone.conf"
+        chown root:wheel "$HERE/config/rclone.conf"
+        chmod 600 "$HERE/config/rclone.conf"
+        echo "(copié la config de rclone a config/rclone.conf)"
+    else
+        echo "⚠️  no encontré $src_rclone — configurá rclone primero (README)" >&2
+    fi
+
+    sed -e "s|__OJOTA_DIR__|$HERE|g" \
+        -e "s|__USER_HOME__|$home|g" \
+        "$PLIST_TEMPLATE" >"$PLIST_SYSTEM"
+    chown root:wheel "$PLIST_SYSTEM"
+    chmod 644 "$PLIST_SYSTEM"
+
+    # matar cualquier corrida manual previa
+    pkill -f "$DAEMON" 2>/dev/null && { echo "(frené el daemon manual)"; sleep 2; }
+
+    launchctl bootout "system/$LABEL" 2>/dev/null
+    if launchctl bootstrap system "$PLIST_SYSTEM"; then
+        sleep 2
+        echo "📌 instalado y arrancado (LaunchDaemon, como root)."
+        svc_report
+    else
+        echo "⚠️  el plist se copió pero bootstrap falló. Revisá con:" >&2
+        echo "    sudo launchctl bootstrap system $PLIST_SYSTEM" >&2
+        exit 1
+    fi
+    echo
+    echo "Para que la Mac no se duerma y el servicio siga 24/7:"
+    echo "    sudo pmset -a sleep 0 disablesleep 1"
+}
+
+cmd_uninstall() {
+    need_root uninstall
+    installed || { echo "no estaba instalado"; return; }
+    launchctl bootout "system/$LABEL" 2>/dev/null
+    rm -f "$PLIST_SYSTEM" "$HERE/config/rclone.conf"
+    echo "🗑  servicio quitado. El daemon ya no arranca al bootear."
+    echo "   (para volver: 'ojota install'. Revertir pmset: sudo pmset -a disablesleep 0)"
+}
+
+# ── dispatch ─────────────────────────────────────────────────────────
 case "${1:-}" in
     casa|afuera)   set_profile "$1" ;;
     status)        cmd_status ;;
     start)         cmd_start ;;
     stop)          cmd_stop ;;
-    restart)       cmd_stop; cmd_start ;;
+    restart)       cmd_restart ;;
+    install)       cmd_install ;;
+    uninstall)     cmd_uninstall ;;
     logs)          tail -n "${2:-40}" "$LOG" ;;
     test-notify)   "$HERE/bin/ojota-notify.sh" 3 "eyes" "👁 ojota — prueba" \
                        "Si ves esto, ntfy anda ($(date '+%H:%M'))" \
                        && echo "📨 enviada" ;;
     ""|-h|--help|help)
-        sed -n '2,9p' "$0" | sed 's/^# \{0,1\}//' ;;
+        sed -n '2,10p' "$SELF" | sed 's/^# \{0,1\}//' ;;
     *)
         echo "comando desconocido: $1" >&2
-        sed -n '2,9p' "$0" | sed 's/^# \{0,1\}//' >&2
+        sed -n '2,10p' "$SELF" | sed 's/^# \{0,1\}//' >&2
         exit 1 ;;
 esac
