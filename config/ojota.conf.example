@@ -41,16 +41,23 @@ PRECAPTURE_SECONDS=8        # segundos antes del evento a incluir
 POSTCAPTURE_SECONDS=10      # seguir grabando tras el último movimiento
 BUFFER_RETENTION_SECONDS=60 # cuánto historial mantener en el ring buffer
 
-# ── Notificaciones push (ntfy.sh) — Etapa 4 ───────────────────────────
+# ── Notificaciones push (ntfy.sh) ─────────────────────────────────────
+# El topic es de hecho un secreto: quien lo sepa puede leer tus avisos
+# (con link al clip y un frame). Generá uno largo y guardalo solo acá:
+#   echo "ojota-$(openssl rand -hex 20)"
 NTFY_SERVER="https://ntfy.sh"
 NTFY_TOPIC="ojota-CAMBIAR-POR-UNO-ALEATORIO"
-NOTIFY_SILENCE_MINUTES=5    # ventana anti-spam (SOLO notificaciones)
-CAMERA_DOWN_ALERT_MINUTES=5 # alerta si la cámara no responde por N min
+NOTIFY_SILENCE_MINUTES=5    # tras avisar, no volver a avisar por N min.
+                           # SOLO afecta las notificaciones: el video se
+                           # graba y sube igual.
+CAMERA_DOWN_ALERT_MINUTES=5 # alerta (prioridad alta) si la cámara no
+                           # responde por N min
 
-# ── Google Drive (rclone) — Etapa 3 ───────────────────────────────────
+# ── Google Drive (rclone) ─────────────────────────────────────────────
 RCLONE_REMOTE="gdrive"
 RCLONE_PATH="ojota"
 RETENTION_DAYS=30           # borrar de Drive clips más viejos que esto
+PENDING_RETRY_MINUTES=3     # cada cuánto reintentar subidas que fallaron
 
 # ── Rutas ─────────────────────────────────────────────────────────────
 # Normalmente no hace falta: los scripts detectan la raíz del repo solos.

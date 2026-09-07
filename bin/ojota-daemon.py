@@ -83,10 +83,12 @@ class Conf:
         self.postcapture_s = int(d.get("POSTCAPTURE_SECONDS", 10))
         self.buffer_s = int(d.get("BUFFER_RETENTION_SECONDS", 60))
         self.cam_down_min = float(d.get("CAMERA_DOWN_ALERT_MINUTES", 5))
+        self.pending_retry_min = float(d.get("PENDING_RETRY_MINUTES", 3))
         self.buffer_dir = os.path.join(self.home, "clips", "buffer")
         self.pending_dir = os.path.join(self.home, "clips", "pending")
         self.log_dir = os.path.join(self.home, "logs")
         self.hook = os.path.join(self.home, "bin", "ojota-clip-hook.sh")
+        self.notify_script = os.path.join(self.home, "bin", "ojota-notify.sh")
 
 
 def setup_logging(log_dir):
@@ -159,7 +161,7 @@ class Daemon:
                 self.log.warning("no pude crear profile file: %s", exc)
         while not self.stop.is_set():
             self._apply_profile(self._read_profile())
-            time.sleep(2)
+            self.stop.wait(2)
 
     # ── ffmpeg: segmentador (copia, sin re-encodear) ──────────────────
     def run_segmenter(self):
@@ -204,7 +206,7 @@ class Daemon:
                 )
             except Exception as exc:  # noqa: BLE001
                 self.log.error("no se pudo lanzar %s: %s", name, exc)
-                time.sleep(backoff)
+                self.stop.wait(backoff)
                 backoff = min(backoff * 2, 60)
                 continue
             self.procs.append(p)
@@ -222,7 +224,7 @@ class Daemon:
             err = (p.stderr.read() or b"").decode(errors="replace").strip()
             self.log.warning("%s terminó (rc=%s) %s", name, rc,
                              _redact(err.splitlines()[-1]) if err else "")
-            time.sleep(backoff)
+            self.stop.wait(backoff)
             backoff = min(backoff * 2, 60)
         # reset de backoff tras una corrida larga se maneja en _detect_loop
 
@@ -256,6 +258,9 @@ class Daemon:
             if self.cam_down_notified:
                 self.log.info("cámara: stream recuperado")
                 self.cam_down_notified = False
+                self._notify(3, "white_check_mark,camera",
+                             "ojota — cámara recuperada",
+                             "La cámara volvió a responder.")
             frame = np.frombuffer(buf, np.uint8).reshape(h, w)
             l, t, r, b = self.active_roi
             cur = frame[int(t * h):int(b * h),
@@ -305,7 +310,7 @@ class Daemon:
 
     def _event_finalizer(self):
         while not self.stop.is_set():
-            time.sleep(1)
+            self.stop.wait(1)
             with self.lock:
                 active = self.event_active
                 last = self.last_motion
@@ -364,18 +369,58 @@ class Daemon:
         if not os.path.exists(self.c.hook):
             self.log.info("hook no existe todavía (%s), salteo", self.c.hook)
             return
+        env = dict(os.environ,
+                   OJOTA_CONF=CONF_PATH,
+                   OJOTA_NOTIFY="1" if self.notify_enabled else "0")
         try:
             subprocess.Popen(
-                [self.c.hook, clip_path, str(int(event_ts))],
+                [self.c.hook, clip_path, str(int(event_ts))], env=env,
                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
             )
         except Exception as exc:  # noqa: BLE001
             self.log.error("no se pudo llamar al hook: %s", exc)
 
+    def _notify(self, priority, tags, title, message):
+        """Notificación directa (cámara caída / recuperada). Siempre se
+        manda, sin importar el perfil."""
+        if not os.path.exists(self.c.notify_script):
+            return
+        try:
+            subprocess.Popen(
+                [self.c.notify_script, str(priority), tags, title, message],
+                env=dict(os.environ, OJOTA_CONF=CONF_PATH),
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            )
+        except Exception as exc:  # noqa: BLE001
+            self.log.error("no se pudo notificar: %s", exc)
+
+    # ── reintento de subidas que quedaron pendientes ────────────────
+    def _pending_flush(self):
+        while not self.stop.is_set():
+            self.stop.wait(self.c.pending_retry_min * 60)
+            if self.stop.is_set():
+                return
+            try:
+                names = os.listdir(self.c.pending_dir)
+            except FileNotFoundError:
+                continue
+            for name in names:
+                if not name.endswith(".mp4"):
+                    continue
+                path = os.path.join(self.c.pending_dir, name)
+                try:
+                    age = time.time() - os.path.getmtime(path)
+                except FileNotFoundError:
+                    continue
+                if age < 60:
+                    continue  # recién creado, el hook original sigue vivo
+                self.log.info("reintento de subida pendiente: %s", name)
+                self._call_hook(path, os.path.getmtime(path))
+
     # ── limpieza del ring buffer ────────────────────────────────────
     def _buffer_cleaner(self):
         while not self.stop.is_set():
-            time.sleep(5)
+            self.stop.wait(5)
             now = time.time()
             with self.lock:
                 keep_from = (self.event_start - self.c.precapture_s
@@ -399,13 +444,16 @@ class Daemon:
     def _health_watch(self):
         limit = self.c.cam_down_min * 60
         while not self.stop.is_set():
-            time.sleep(10)
+            self.stop.wait(10)
             gap = time.time() - self.last_frame_ts
             if gap > limit and not self.cam_down_notified:
                 self.cam_down_notified = True
                 self.log.error(
                     "ALERTA: sin frames de la cámara hace %.0f min", gap / 60)
-                self._call_hook("__CAMERA_DOWN__", time.time())
+                self._notify(5, "rotating_light,camera",
+                             "ojota — cámara sin señal",
+                             "Sin frames de la cámara hace %.0f min. "
+                             "¿Se cayó el sistema?" % (gap / 60))
 
     # ── arranque ───────────────────────────────────────────────────
     def start(self):
@@ -416,6 +464,7 @@ class Daemon:
             threading.Thread(target=self._buffer_cleaner, name="cleaner"),
             threading.Thread(target=self._health_watch, name="health"),
             threading.Thread(target=self._profile_watch, name="profile"),
+            threading.Thread(target=self._pending_flush, name="flush"),
         ]
         for t in threads:
             t.daemon = True
@@ -423,7 +472,7 @@ class Daemon:
         self.log.info("ojota daemon arriba (pid %d) — perfil '%s'",
                       os.getpid(), self.profile)
         while not self.stop.is_set():
-            time.sleep(1)
+            self.stop.wait(1)
         self.log.info("apagando…")
         for p in list(self.procs):
             try:
@@ -431,7 +480,7 @@ class Daemon:
             except Exception:  # noqa: BLE001
                 pass
         for t in threads:
-            t.join(timeout=5)
+            t.join(timeout=3)
 
     def shutdown(self, *_):
         self.stop.set()

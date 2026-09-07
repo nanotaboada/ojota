@@ -135,35 +135,49 @@ Todo en `config/ojota.conf` (formato `KEY=VALUE`, lo leen bash y Python).
 | `CAMERA_DOWN_ALERT_MINUTES` | 5 | Alerta si la cámara no responde por N min |
 | `RCLONE_REMOTE` / `RCLONE_PATH` | `gdrive` / `ojota` | Destino en Drive |
 | `RETENTION_DAYS` | 30 | Borrar de Drive clips más viejos que esto |
+| `PENDING_RETRY_MINUTES` | 3 | Cada cuánto reintentar subidas que fallaron |
 
 ---
 
 ## Operación
 
 ```sh
-# Calibrar detección (no graba nada, solo muestra % de cambio por frame)
+bin/ojota casa            # perfil casa: notificaciones de movimiento en silencio
+bin/ojota afuera          # perfil afuera: notificaciones activas (default)
+bin/ojota status          # perfil, daemon, buffer, últimos eventos, errores, Drive
+bin/ojota start | stop | restart
+bin/ojota logs [N]        # últimas N líneas del log
+bin/ojota test-notify     # mandar una notificación de prueba
+
+# Calibrar la detección (no graba, solo muestra el % de cambio por frame)
 .venv/bin/python bin/ojota-tune.py [--main] [--seconds=N]
-
-# Correr el daemon a mano (para probar)
-.venv/bin/python bin/ojota-daemon.py
-
-# Cambiar de perfil
-echo casa   > config/profile     # en casa: notificaciones en silencio
-echo afuera > config/profile     # armado
-
-# Como servicio -> ver Etapa 5 (pendiente): start / stop / status
 ```
+
+Cambiar de perfil también se puede escribiendo `casa` / `afuera` en
+`config/profile`; el daemon lo toma en ~2 s.
+
+### Notificaciones (ntfy.sh)
+
+Instalá la app **ntfy** en el celular, suscribite al topic de tu config
+(o abrí `https://ntfy.sh/<tu-topic>` en el teléfono). Cada evento manda hora,
+un frame del clip y el link directo al video en Drive. Alerta de prioridad
+alta si la cámara deja de responder. La ventana de silencio agrupa avisos
+seguidos **sin afectar la grabación**.
 
 ---
 
 ## Diagnóstico
 
-- **Log**: `logs/ojota.log` (rota a 2 MB, 5 archivos).
-- **No detecta / detecta de más**: correr `ojota-tune.py`, mirar los % con
-  y sin movimiento, ajustar `PIXEL_DELTA` y `MOTION_AREA_PCT`.
+- **Estado general**: `bin/ojota status`.
+- **Logs**: `logs/ojota.log` (daemon) y `logs/ojota-hook.log` (subidas +
+  notificaciones). Ambos rotan por tamaño.
+- **No detecta / detecta de más**: `ojota-tune.py`, mirar los % con y sin
+  movimiento, ajustar `PIXEL_DELTA` y `MOTION_AREA_PCT`.
 - **Falsos positivos por luz**: bajar `LIGHT_CHANGE_PCT` o acotar `DETECT_ROI`.
-- **La cámara se cae**: el daemon reintenta con backoff exponencial y
-  dispara una alerta si no hay frames por `CAMERA_DOWN_ALERT_MINUTES`.
+- **La cámara se cae**: el daemon reintenta con backoff exponencial y manda
+  una alerta si no hay frames por `CAMERA_DOWN_ALERT_MINUTES`.
+- **Un clip no subió**: queda en `clips/pending/`; el daemon reintenta cada
+  `PENDING_RETRY_MINUTES`. El local no se borra hasta confirmar la subida.
 - **Clip cortado**: subir `POSTCAPTURE_SECONDS` / `PRECAPTURE_SECONDS`.
 
 ---
@@ -174,8 +188,8 @@ echo afuera > config/profile     # armado
 |---|---|
 | 1 — Entorno (ffmpeg) | ✅ |
 | 2 — Captura y detección | ✅ |
-| 3 — Google Drive (rclone) | ⏳ |
-| 4 — Integración y notificaciones (ntfy) | ⏳ |
+| 3 — Google Drive (rclone) | ✅ |
+| 4 — Integración y notificaciones (ntfy) | ✅ |
 | 5 — Daemon (LaunchDaemon) | ⏳ |
 | 6 — Mantenimiento (retención + estado) | ⏳ |
 

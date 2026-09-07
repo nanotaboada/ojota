@@ -1,0 +1,113 @@
+#!/bin/bash
+# ojota — control del sistema
+#
+#   ojota casa | afuera        cambiar de perfil
+#   ojota status               estado general
+#   ojota start | stop | restart   (corrida manual; ver Etapa 5 para el servicio)
+#   ojota logs [N]             últimas N líneas del log (default 40)
+#   ojota test-notify          mandar una notificación de prueba
+
+set -u
+
+HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+CONF="${OJOTA_CONF:-$HERE/config/ojota.conf}"
+# shellcheck disable=SC1090
+[ -f "$CONF" ] && . "$CONF"
+
+PROFILE_FILE="$HERE/config/profile"
+LOG="$HERE/logs/ojota.log"
+HOOK_LOG="$HERE/logs/ojota-hook.log"
+PY="$HERE/.venv/bin/python3"
+DAEMON="$HERE/bin/ojota-daemon.py"
+: "${DEFAULT_PROFILE:=afuera}"
+: "${RCLONE_REMOTE:=gdrive}"
+: "${RCLONE_PATH:=ojota}"
+
+daemon_pid() { pgrep -f "$DAEMON" | head -1; }
+
+set_profile() {
+    echo "$1" >"$PROFILE_FILE"
+    if [ "$1" = casa ]; then
+        echo "🏠 perfil → casa   ·   🔕 notificaciones de movimiento en silencio"
+    else
+        echo "👁  perfil → afuera   ·   🔔 notificaciones activas"
+    fi
+    echo "   (el daemon lo toma en ~2s)"
+}
+
+cmd_status() {
+    local pid cur segs pend
+    pid="$(daemon_pid)"
+    cur="$(cat "$PROFILE_FILE" 2>/dev/null || echo "$DEFAULT_PROFILE")"
+    echo "👁  ojota"
+    [ "$cur" = casa ] && echo "   perfil:   🏠 casa (silencio)" \
+                      || echo "   perfil:   👁  afuera"
+    if [ -n "$pid" ]; then
+        echo "   daemon:   ✅ corriendo (pid $pid)"
+    else
+        echo "   daemon:   🔴 detenido"
+    fi
+    segs="$(ls "$HERE/clips/buffer/"*.ts 2>/dev/null | wc -l | tr -d ' ')"
+    pend="$(ls "$HERE/clips/pending/"*.mp4 2>/dev/null | wc -l | tr -d ' ')"
+    [ "${pend:-0}" -gt 0 ] && pend="⚠️  ${pend}" || pend="${pend}"
+    echo "   buffer:   ${segs} segmentos  ·  pendientes de subir: ${pend}"
+
+    echo
+    echo "últimos eventos:"
+    local ev
+    ev="$(grep -hE "MOVIMIENTO|clip armado|ALERTA|cámara recuperada" "$LOG" 2>/dev/null | tail -5)"
+    [ -n "$ev" ] && echo "$ev" | sed 's/^/  /' || echo "  (sin eventos)"
+
+    echo
+    local er
+    er="$(grep -hE " ERROR | FALLÓ|falló" "$LOG" "$HOOK_LOG" 2>/dev/null | tail -5)"
+    if [ -n "$er" ]; then
+        echo "⚠️  errores recientes:"; echo "$er" | sed 's/^/  /'
+    else
+        echo "errores recientes: ✅ ninguno"
+    fi
+
+    echo
+    if command -v rclone >/dev/null; then
+        local n
+        n="$(rclone lsf "${RCLONE_REMOTE}:${RCLONE_PATH}/" 2>/dev/null | wc -l | tr -d ' ')"
+        echo "☁️  Drive:    ${n} clips en ${RCLONE_REMOTE}:${RCLONE_PATH}/"
+        rclone about "${RCLONE_REMOTE}:" 2>/dev/null \
+            | grep -E "^(Used|Free):" | sed 's/^/          /'
+    fi
+}
+
+cmd_start() {
+    [ -n "$(daemon_pid)" ] && { echo "ya está corriendo (pid $(daemon_pid))"; return; }
+    [ -x "$PY" ] || { echo "falta el venv ($PY). Ver README, paso 2." >&2; exit 1; }
+    nohup "$PY" "$DAEMON" >/dev/null 2>&1 &
+    sleep 2
+    [ -n "$(daemon_pid)" ] && echo "👁  daemon arrancado (pid $(daemon_pid))" \
+        || { echo "🔴 no arrancó, mirá $LOG" >&2; exit 1; }
+}
+
+cmd_stop() {
+    local pid; pid="$(daemon_pid)"
+    [ -z "$pid" ] && { echo "no estaba corriendo"; return; }
+    kill -TERM "$pid"
+    for _ in $(seq 1 20); do sleep 0.5; [ -z "$(daemon_pid)" ] && break; done
+    [ -z "$(daemon_pid)" ] && echo "🛑 detenido" || { kill -9 "$pid"; echo "🛑 forzado"; }
+}
+
+case "${1:-}" in
+    casa|afuera)   set_profile "$1" ;;
+    status)        cmd_status ;;
+    start)         cmd_start ;;
+    stop)          cmd_stop ;;
+    restart)       cmd_stop; cmd_start ;;
+    logs)          tail -n "${2:-40}" "$LOG" ;;
+    test-notify)   "$HERE/bin/ojota-notify.sh" 3 "eyes" "👁 ojota — prueba" \
+                       "Si ves esto, ntfy anda ($(date '+%H:%M'))" \
+                       && echo "📨 enviada" ;;
+    ""|-h|--help|help)
+        sed -n '2,9p' "$0" | sed 's/^# \{0,1\}//' ;;
+    *)
+        echo "comando desconocido: $1" >&2
+        sed -n '2,9p' "$0" | sed 's/^# \{0,1\}//' >&2
+        exit 1 ;;
+esac
