@@ -73,8 +73,6 @@ class Conf:
         self.light_pct = float(d.get("LIGHT_CHANGE_PCT", 70))
         self.warmup_s = float(d.get("DETECT_WARMUP_SECONDS", 10))
         self.roi = _parse_roi(d.get("DETECT_ROI", "0,0,1,1"))
-        self.roi_casa = _parse_roi(d.get("CASA_DETECT_ROI",
-                                         d.get("DETECT_ROI", "0,0,1,1")))
         self.default_profile = d.get("DEFAULT_PROFILE", "afuera")
         self.home = d.get("OJOTA_HOME") or ROOT
         self.profile_file = os.path.join(self.home, "config", "profile")
@@ -130,6 +128,7 @@ class Daemon:
         self.profile = None
         self.active_roi = conf.roi
         self.notify_enabled = True
+        self.capture_enabled = True   # afuera=True, casa=False (pausa total)
         self._apply_profile(self._read_profile(), initial=True)
 
     # ── perfil casa / afuera ────────────────────────────────────────
@@ -146,15 +145,26 @@ class Daemon:
         if name == self.profile:
             return
         self.profile = name
-        if name == "casa":
-            self.active_roi = self.c.roi_casa
-            self.notify_enabled = False
-        else:
-            self.active_roi = self.c.roi
-            self.notify_enabled = True
-        if not initial:
-            self.log.info("perfil -> %s (roi=%s, notif=%s)", name,
-                          self.active_roi, "on" if self.notify_enabled else "off")
+        want_capture = name != "casa"
+        self.notify_enabled = want_capture
+        if want_capture != self.capture_enabled:
+            self.capture_enabled = want_capture
+            if want_capture:
+                self.last_frame_ts = time.time()   # gracia para el health
+                if not initial:
+                    self.log.info("perfil afuera: reanudo la captura")
+            else:
+                if not initial:
+                    self.log.info("perfil casa: captura en pausa")
+                with self.lock:
+                    self.event_active = False
+                for p in list(self.procs):
+                    try:
+                        p.terminate()
+                    except Exception:  # noqa: BLE001
+                        pass
+        elif not initial:
+            self.log.info("perfil -> %s", name)
 
     def _profile_watch(self):
         # el archivo lo escribe `bin/ojota casa|afuera` (como usuario); el
@@ -197,7 +207,15 @@ class Daemon:
 
     def _supervise(self, name, cmd, handler):
         backoff = 2
+        paused = False
         while not self.stop.is_set():
+            if not self.capture_enabled:
+                if not paused:
+                    self.log.info("%s: en pausa (perfil casa)", name)
+                    paused = True
+                self.stop.wait(2)
+                continue
+            paused = False
             self.log.info("iniciando %s: %s", name, _redact(shlex.join(cmd)))
             try:
                 p = subprocess.Popen(
@@ -221,6 +239,8 @@ class Daemon:
             self.procs.remove(p)
             if self.stop.is_set():
                 return
+            if not self.capture_enabled:
+                continue  # lo frenó el cambio a 'casa', no es un fallo
             err = (p.stderr.read() or b"").decode(errors="replace").strip()
             self.log.warning("%s terminó (rc=%s) %s", name, rc,
                              _redact(err.splitlines()[-1]) if err else "")
@@ -249,7 +269,7 @@ class Daemon:
         run_start = time.time()
         warmup_until = run_start + self.c.warmup_s
         motion_streak = 0
-        while not self.stop.is_set():
+        while not self.stop.is_set() and self.capture_enabled:
             buf = _read_exact(p.stdout, frame_bytes)
             if buf is None:
                 break
@@ -494,6 +514,8 @@ class Daemon:
         limit = self.c.cam_down_min * 60
         while not self.stop.is_set():
             self.stop.wait(10)
+            if not self.capture_enabled:
+                continue  # en 'casa' no hay frames a propósito
             gap = time.time() - self.last_frame_ts
             if gap > limit and not self.cam_down_notified:
                 self.cam_down_notified = True

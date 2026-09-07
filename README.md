@@ -13,49 +13,61 @@ audio y control total del pipeline.
 
 ## Cómo funciona
 
-Dos conexiones RTSP a la misma cámara, cada una con un rol:
+Dos conexiones RTSP a la misma cámara, cada una con un rol. El pipeline de
+captura solo corre con el perfil **armado** (`afuera`); en `casa` está todo
+en pausa salvo los chequeos de salud.
 
 ```mermaid
 flowchart TB
     CAM["📷 Cámara IP<br/>RTSP en la LAN"]
+    PROF{"perfil"}
 
-    CAM -->|"stream principal · alta resolución + audio"| SEG
-    CAM -->|"substream · baja resolución"| DET
+    CAM --> PROF
+    PROF -->|"casa · desarmado"| PAUSE["captura en pausa<br/>(no graba / no sube / no notifica)"]
+    PROF -->|"afuera · armado"| SEG
 
-    subgraph DAEMON["ojota-daemon.py · corre 24/7"]
+    subgraph DAEMON["ojota-daemon.py · pipeline armado"]
         direction TB
-        SEG["Segmentador<br/>ffmpeg -c copy · sin re-encodear"]
-        BUF[("clips/buffer/<br/>segmentos de 4s · ring buffer ~60s")]
-        DET["Detector<br/>ffmpeg → gris 320×180 @ 3fps"]
-        DIFF{"diff de frames · numpy<br/>¿supera el umbral?"}
-        ASM["Arma el clip<br/>segmentos [disparo −8s … +2s]<br/>concat -c copy"]
-        PEND[("clips/pending/<br/>ojota-*.mp4")]
+        SEG["principal → segmentador<br/>ffmpeg -c copy"]
+        BUF[("clips/buffer/<br/>ring buffer ~60s")]
+        DET["substream → detector<br/>gris 320×180 @ 3fps"]
+        DIFF{"diff de frames · numpy<br/>¿movimiento?"}
+        ASM["arma el clip<br/>[disparo −8s … +2s]"]
+        PEND[("clips/pending/")]
 
         SEG --> BUF
         DET --> DIFF
-        DIFF -->|"cambio de luz / sin movimiento"| DET
+        DIFF -->|"cambio de luz / quieto"| DET
         DIFF -->|"movimiento"| ASM
         BUF --> ASM
         ASM --> PEND
     end
 
-    PEND --> HOOK["ojota-clip-hook.sh<br/>al cerrar cada clip"]
-    HOOK -->|"sube con rclone"| GDRIVE["☁️ Google Drive · ojota/"]
-    HOOK -->|"notifica · hora + link + frame"| NTFY["🔔 ntfy.sh"]
-    HOOK -.->|"borra el local tras confirmar subida"| PEND
+    PEND --> HOOK["ojota-clip-hook.sh"]
+    HOOK -->|"rclone, con reintentos"| GD["☁️ Google Drive · ojota/"]
+    HOOK -->|"hora + frame + link"| NTFY["🔔 ntfy.sh"]
+    HOOK -.->|"borra el local al confirmar"| PEND
     NTFY --> PHONE["📱 Celular"]
+
+    subgraph SALUD["siempre activo (en los dos perfiles)"]
+        direction TB
+        HL["cámara sin señal → ntfy urgente"]
+        HB["heartbeat → healthchecks.io → corte de luz"]
+        RET["retención: borra de Drive los clips > RETENTION_DAYS"]
+        BK["backup de config/ → Drive"]
+    end
 ```
 
-- **El segmentador graba siempre**, haya movimiento o no. Por eso la
-  pre-captura es casi gratis: el pasado ya está en disco, al detectar
-  solo se juntan los pedazos que corresponden.
-- **La detección** corre sobre el substream de baja resolución, en gris y
-  a 3 fps: barata en CPU (~2-3% de un núcleo en total).
-- **Dispara** cuando N frames seguidos (`MOTION_MIN_FRAMES`) superan un
-  umbral de píxeles cambiados (`MOTION_AREA_PCT`). Un cambio de casi toda
-  la imagen (`LIGHT_CHANGE_PCT`) se toma como cambio de luz y se ignora.
-- **Perfiles** `casa` / `afuera`: el daemon corre siempre; el perfil cambia
-  ROI y si las notificaciones de movimiento suenan o no. Bootea en `afuera`.
+- **Armado / desarmado**: `afuera` = graba, sube y notifica. `casa` = frena
+  los dos ffmpeg; solo siguen los chequeos de salud. La lógica es "esto
+  funciona cuando no estás"; si necesitás grabar estando en casa (alguien
+  sospechoso en la puerta), `ojota afuera` a mano.
+- **El segmentador graba siempre que está armado**, haya movimiento o no.
+  Por eso la pre-captura es casi gratis: el pasado ya está en disco.
+- **La detección** corre sobre el substream en gris a 3 fps: ~2-3% de un
+  núcleo. Dispara cuando N frames seguidos (`MOTION_MIN_FRAMES`) superan
+  `MOTION_AREA_PCT`; un cambio de casi toda la imagen se toma como cambio
+  de luz (`LIGHT_CHANGE_PCT`) y se ignora.
 
 ---
 
@@ -160,8 +172,8 @@ Todo en `config/ojota.conf` (formato `KEY=VALUE`, lo leen bash y Python).
 ## Operación
 
 ```sh
-bin/ojota casa            # perfil casa: notificaciones de movimiento en silencio
-bin/ojota afuera          # perfil afuera: notificaciones activas (default)
+bin/ojota afuera          # armar: graba, sube y notifica  (alias: armar)
+bin/ojota casa            # desarmar: pausa total           (alias: desarmar)
 bin/ojota status          # perfil, daemon, servicio, buffer, eventos, errores, Drive
 bin/ojota start | stop | restart
 bin/ojota logs [N]        # últimas N líneas del log
@@ -177,7 +189,8 @@ bin/ojota backup-config   # subir config/ a Drive (config-backup/)
 cada `RETENTION_CHECK_HOURS`, backup al arrancar y cada 7 días).
 
 Cambiar de perfil también se puede escribiendo `casa` / `afuera` en
-`config/profile`; el daemon lo toma en ~2 s.
+`config/profile`; el daemon lo toma en ~2 s. Al bootear usa lo que diga
+ese archivo (o `DEFAULT_PROFILE` si no existe).
 
 ### Como servicio (24/7, arranca al bootear)
 

@@ -13,7 +13,10 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
     resolución y pocos fps (numpy): umbral de área, mínimo de frames,
     warm-up y descarte de cambios de luz.
   - Armado de clips mp4 con pre/post-captura vía `concat`.
-  - Perfiles `casa` / `afuera` por archivo `config/profile`.
+  - Perfiles por archivo `config/profile`: `afuera` (armado: captura +
+    detección + subida + notificaciones) / `casa` (desarmado: frena los
+    dos ffmpeg, solo siguen los chequeos de salud). Alias `armar` /
+    `desarmar` para armar a mano estando en casa.
   - Supervisión de subprocesos con backoff exponencial y alerta de
     cámara caída.
   - Log rotativo; credenciales redactadas en el log.
@@ -27,9 +30,9 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
   - `bin/ojota-notify.sh`: helper de notificación push (ntfy).
   - Daemon: alerta de prioridad alta si la cámara deja de responder,
     aviso al recuperarse, e hilo que reintenta las subidas pendientes.
-- **`bin/ojota`**: comando de control — `casa` / `afuera` (perfil),
-  `status`, `start` / `stop` / `restart`, `logs`, `test-notify`,
-  `prune`, `backup-config`, `install` / `uninstall`.
+- **`bin/ojota`**: comando de control — `afuera` / `casa` (con alias
+  `armar` / `desarmar`), `status`, `start` / `stop` / `restart`, `logs`,
+  `test-notify`, `prune`, `backup-config`, `install` / `uninstall`.
 - **Mantenimiento (daemon)**: retención de clips en Drive cada
   `RETENTION_CHECK_HOURS`, backup de `config/` a `config-backup/` al
   arrancar y cada 7 días, y heartbeat opcional (`HEARTBEAT_URL`) para

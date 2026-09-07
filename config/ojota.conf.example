@@ -28,12 +28,12 @@ DETECT_ROI="0,0,1,1"       # zona donde se busca movimiento (izq,arriba,der,
                            # NO recorta el video: el clip siempre es completo.
 
 # ── Perfiles casa / afuera ────────────────────────────────────────────
-# El daemon corre siempre. `ojota afuera` / `ojota casa` cambian el perfil.
+# El daemon corre siempre. `ojota afuera` arma (captura + detección +
+# subida + notificaciones). `ojota casa` desarma: frena los dos ffmpeg,
+# no graba, no sube, no notifica. Solo siguen los chequeos de salud
+# (cámara caída, heartbeat).
 DEFAULT_PROFILE=afuera     # perfil al bootear (fail-safe: si se reinicia
                            # mientras no estás, queda armado)
-CASA_DETECT_ROI="0,0,1,1"  # ROI cuando el perfil es "casa" (a futuro:
-                           # acotar a una zona más chica). En "casa" además
-                           # las notificaciones de movimiento van en silencio.
 
 # ── Grabación del clip ────────────────────────────────────────────────
 SEGMENT_SECONDS=4           # tamaño de cada segmento del ring buffer

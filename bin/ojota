@@ -1,7 +1,8 @@
 #!/bin/bash
 # ojota — control del sistema
 #
-#   ojota casa | afuera          cambiar de perfil
+#   ojota afuera | armar         armar: graba, sube y notifica
+#   ojota casa | desarmar        desarmar: pausa total (solo chequeos de salud)
 #   ojota status                 estado general
 #   ojota start | stop | restart arrancar / parar / reiniciar el daemon
 #   ojota logs [N]               últimas N líneas del log (default 40)
@@ -42,11 +43,12 @@ need_root()   { is_root || exec sudo "$SELF" "$@"; }
 set_profile() {
     echo "$1" >"$PROFILE_FILE"
     if [ "$1" = casa ]; then
-        echo "🏠 perfil → casa   ·   🔕 notificaciones de movimiento en silencio"
+        echo "⚪ casa → desarmado: no graba, no sube, no notifica"
+        echo "   (siguen los chequeos de salud: cámara caída, heartbeat)"
     else
-        echo "👁  perfil → afuera   ·   🔔 notificaciones activas"
+        echo "🔴 afuera → armado: graba, sube a Drive y notifica"
+        echo "   (~15s de warm-up y queda activo)"
     fi
-    echo "   (el daemon lo toma en ~2s)"
 }
 
 # ── estado ─────────────────────────────────────────────────────────────
@@ -55,8 +57,9 @@ cmd_status() {
     pid="$(daemon_pid)"
     cur="$(cat "$PROFILE_FILE" 2>/dev/null || echo "$DEFAULT_PROFILE")"
     echo "👁  ojota"
-    [ "$cur" = casa ] && echo "   perfil:   🏠 casa (silencio)" \
-                      || echo "   perfil:   👁  afuera"
+    [ "$cur" = casa ] \
+        && echo "   perfil:   ⚪ casa · DESARMADO (no graba)" \
+        || echo "   perfil:   🔴 afuera · ARMADO"
     if [ -n "$pid" ]; then
         echo "   daemon:   ✅ corriendo (pid $pid)"
     else
@@ -239,7 +242,8 @@ cmd_uninstall() {
 
 # ── dispatch ─────────────────────────────────────────────────────────
 case "${1:-}" in
-    casa|afuera)   set_profile "$1" ;;
+    casa|desarmar) set_profile casa ;;
+    afuera|armar)  set_profile afuera ;;
     status)        cmd_status ;;
     start)         cmd_start ;;
     stop)          cmd_stop ;;
