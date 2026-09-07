@@ -84,11 +84,16 @@ class Conf:
         self.buffer_s = int(d.get("BUFFER_RETENTION_SECONDS", 60))
         self.cam_down_min = float(d.get("CAMERA_DOWN_ALERT_MINUTES", 5))
         self.pending_retry_min = float(d.get("PENDING_RETRY_MINUTES", 3))
+        self.retention_check_h = float(d.get("RETENTION_CHECK_HOURS", 24))
+        self.config_backup = d.get("CONFIG_BACKUP", "1") == "1"
+        self.heartbeat_url = d.get("HEARTBEAT_URL", "").strip()
+        self.heartbeat_min = float(d.get("HEARTBEAT_MINUTES", 15))
         self.buffer_dir = os.path.join(self.home, "clips", "buffer")
         self.pending_dir = os.path.join(self.home, "clips", "pending")
         self.log_dir = os.path.join(self.home, "logs")
         self.hook = os.path.join(self.home, "bin", "ojota-clip-hook.sh")
         self.notify_script = os.path.join(self.home, "bin", "ojota-notify.sh")
+        self.cli = os.path.join(self.home, "bin", "ojota")
 
 
 def setup_logging(log_dir):
@@ -412,6 +417,49 @@ class Daemon:
                 self.log.info("reintento de subida pendiente: %s", name)
                 self._call_hook(path, os.path.getmtime(path))
 
+    # ── mantenimiento: retención + backup de config ────────────────
+    def _maintenance(self):
+        env = dict(os.environ, OJOTA_CONF=CONF_PATH)
+        last_backup = 0.0
+        first = True
+        while not self.stop.is_set():
+            if not first:
+                self.stop.wait(self.c.retention_check_h * 3600)
+            first = False
+            if self.stop.is_set():
+                return
+            self._run_cli("prune", env)
+            if self.c.config_backup and time.time() - last_backup > 7 * 86400:
+                self._run_cli("backup-config", env)
+                last_backup = time.time()
+
+    def _run_cli(self, sub, env):
+        if not os.path.exists(self.c.cli):
+            return
+        try:
+            r = subprocess.run([self.c.cli, sub], env=env, timeout=300,
+                               capture_output=True, text=True)
+            for line in (r.stdout or "").splitlines():
+                if line.strip():
+                    self.log.info("%s: %s", sub, line.strip())
+            if r.returncode != 0 and r.stderr:
+                self.log.warning("%s: %s", sub, r.stderr.strip()[:200])
+        except Exception as exc:  # noqa: BLE001
+            self.log.warning("no se pudo correr '%s': %s", sub, exc)
+
+    # ── heartbeat externo ─────────────────────────────────────────
+    def _heartbeat(self):
+        if not self.c.heartbeat_url:
+            return
+        while not self.stop.is_set():
+            try:
+                subprocess.run(["curl", "-fsS", "-m", "10",
+                                self.c.heartbeat_url],
+                               capture_output=True, timeout=15)
+            except Exception:  # noqa: BLE001
+                pass
+            self.stop.wait(self.c.heartbeat_min * 60)
+
     # ── limpieza del ring buffer ────────────────────────────────────
     def _buffer_cleaner(self):
         while not self.stop.is_set():
@@ -460,6 +508,8 @@ class Daemon:
             threading.Thread(target=self._health_watch, name="health"),
             threading.Thread(target=self._profile_watch, name="profile"),
             threading.Thread(target=self._pending_flush, name="flush"),
+            threading.Thread(target=self._maintenance, name="maint"),
+            threading.Thread(target=self._heartbeat, name="heartbeat"),
         ]
         for t in threads:
             t.daemon = True

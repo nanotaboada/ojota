@@ -149,7 +149,11 @@ Todo en `config/ojota.conf` (formato `KEY=VALUE`, lo leen bash y Python).
 | `CAMERA_DOWN_ALERT_MINUTES` | 5 | Alerta si la cámara no responde por N min |
 | `RCLONE_REMOTE` / `RCLONE_PATH` | `gdrive` / `ojota` | Destino en Drive |
 | `RETENTION_DAYS` | 30 | Borrar de Drive clips más viejos que esto |
+| `RETENTION_CHECK_HOURS` | 24 | Cada cuánto corre la limpieza |
 | `PENDING_RETRY_MINUTES` | 3 | Cada cuánto reintentar subidas que fallaron |
+| `CONFIG_BACKUP` | 1 | Subir `config/` a Drive (`config-backup/`) — incluye secretos |
+| `HEARTBEAT_URL` | — | Ping periódico (healthchecks.io etc.); vacío = off |
+| `HEARTBEAT_MINUTES` | 15 | Cada cuánto se hace el ping |
 
 ---
 
@@ -162,10 +166,15 @@ bin/ojota status          # perfil, daemon, servicio, buffer, eventos, errores, 
 bin/ojota start | stop | restart
 bin/ojota logs [N]        # últimas N líneas del log
 bin/ojota test-notify     # mandar una notificación de prueba
+bin/ojota prune           # borrar de Drive los clips más viejos que RETENTION_DAYS
+bin/ojota backup-config   # subir config/ a Drive (config-backup/)
 
 # Calibrar la detección (no graba, solo muestra el % de cambio por frame)
 .venv/bin/python bin/ojota-tune.py [--main] [--seconds=N]
 ```
+
+`prune` y `backup-config` también corren solos desde el daemon (retención
+cada `RETENTION_CHECK_HOURS`, backup al arrancar y cada 7 días).
 
 Cambiar de perfil también se puede escribiendo `casa` / `afuera` en
 `config/profile`; el daemon lo toma en ~2 s.
@@ -199,6 +208,14 @@ un frame del clip y el link directo al video en Drive. Alerta de prioridad
 alta si la cámara deja de responder. La ventana de silencio agrupa avisos
 seguidos **sin afectar la grabación**.
 
+### Heartbeat externo (corte de luz)
+
+La alerta de "cámara sin señal" solo llega si la Mac sigue viva y con
+internet. Para enterarte de un corte que apague la Mac, creá un check en
+[healthchecks.io](https://healthchecks.io) (gratis) y poné su URL de ping
+en `HEARTBEAT_URL`. El daemon la llama cada `HEARTBEAT_MINUTES`; si deja de
+llamar, healthchecks.io te avisa.
+
 ---
 
 ## Diagnóstico
@@ -217,6 +234,8 @@ seguidos **sin afectar la grabación**.
 - **Un clip no subió**: queda en `clips/pending/`; el daemon reintenta cada
   `PENDING_RETRY_MINUTES`. El local no se borra hasta confirmar la subida.
 - **Clip cortado**: subir `POSTCAPTURE_SECONDS` / `PRECAPTURE_SECONDS`.
+- **Reproducir el setup en otra Mac**: cloná el repo + bajá `config-backup/`
+  de Drive a `config/` (o `rclone copy gdrive:ojota/config-backup/ config/`).
 
 ---
 
@@ -229,10 +248,12 @@ seguidos **sin afectar la grabación**.
 | 3 — Google Drive (rclone) | ✅ |
 | 4 — Integración y notificaciones (ntfy) | ✅ |
 | 5 — Daemon (LaunchDaemon) | ✅ |
-| 6 — Mantenimiento (retención + heartbeat) | ⏳ |
+| 6 — Mantenimiento (retención + backup + heartbeat) | ✅ |
 
-**Ajustes pendientes:**
+**Ideas / pendientes:**
 
+- Auto-armado: detectar presencia del celular en la LAN y cambiar
+  `casa` / `afuera` solo.
 - ROI para excluir zonas sin interés del encuadre (segunda vuelta de
   calibración, tras unos días de uso real).
 - Validar `LIGHT_CHANGE_PCT` con cambios de luz reales (luz artificial,

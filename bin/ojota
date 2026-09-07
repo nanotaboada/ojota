@@ -6,6 +6,8 @@
 #   ojota start | stop | restart arrancar / parar / reiniciar el daemon
 #   ojota logs [N]               últimas N líneas del log (default 40)
 #   ojota test-notify            mandar una notificación de prueba
+#   ojota prune                  borrar de Drive los clips más viejos que RETENTION_DAYS
+#   ojota backup-config          subir config/ a Drive (config-backup/)
 #   ojota install | uninstall    instalar / quitar el servicio (LaunchDaemon, pide sudo)
 
 set -u
@@ -27,6 +29,9 @@ PLIST_TEMPLATE="$HERE/deploy/${LABEL}.plist"
 : "${DEFAULT_PROFILE:=afuera}"
 : "${RCLONE_REMOTE:=gdrive}"
 : "${RCLONE_PATH:=ojota}"
+: "${RETENTION_DAYS:=30}"
+: "${CONFIG_BACKUP:=1}"
+DEST="${RCLONE_REMOTE}:${RCLONE_PATH}"
 
 installed()   { [ -f "$PLIST_SYSTEM" ]; }
 is_root()     { [ "$(id -u)" = 0 ]; }
@@ -74,22 +79,28 @@ cmd_status() {
     [ -n "$ev" ] && echo "$ev" | sed 's/^/  /' || echo "  (sin eventos)"
 
     echo
-    local er
-    er="$(grep -hE " ERROR | FALLÓ|falló" "$LOG" "$HOOK_LOG" 2>/dev/null | tail -5)"
+    # errores desde que arrancó el daemon actual (no arrastrar los viejos)
+    local since er
+    since="$(grep -n "ojota daemon arriba" "$LOG" 2>/dev/null | tail -1 | cut -d: -f1)"
+    er="$( { [ -n "$since" ] && tail -n "+$since" "$LOG"; grep -h . "$HOOK_LOG"; } 2>/dev/null \
+          | grep -E " ERROR | FALLÓ|falló" | tail -5)"
     if [ -n "$er" ]; then
-        echo "⚠️  errores recientes:"; echo "$er" | sed 's/^/  /'
+        echo "⚠️  errores (corrida actual):"; echo "$er" | sed 's/^/  /'
     else
-        echo "errores recientes: ✅ ninguno"
+        echo "errores: ✅ ninguno en la corrida actual"
     fi
 
     echo
     if command -v rclone >/dev/null; then
         local n
-        n="$(rclone lsf "${RCLONE_REMOTE}:${RCLONE_PATH}/" 2>/dev/null | wc -l | tr -d ' ')"
-        echo "☁️  Drive:    ${n} clips en ${RCLONE_REMOTE}:${RCLONE_PATH}/"
+        n="$(rclone lsf "$DEST/" --include '*.mp4' 2>/dev/null | wc -l | tr -d ' ')"
+        echo "☁️  Drive:    ${n} clips en $DEST/  (retención ${RETENTION_DAYS}d)"
         rclone about "${RCLONE_REMOTE}:" 2>/dev/null \
             | grep -E "^(Used|Free):" | sed 's/^/          /'
     fi
+    local mnt
+    mnt="$(grep -hE "prune:|backup-config:|heartbeat" "$LOG" 2>/dev/null | tail -1)"
+    [ -n "$mnt" ] && echo "   mant.:    ${mnt##* INFO }"
 }
 
 # ── start / stop / restart ────────────────────────────────────────────
@@ -141,6 +152,35 @@ svc_report() {
     else
         echo "🔴 el servicio no levantó — mirá $HERE/logs/launchd.err.log" >&2
     fi
+}
+
+# ── mantenimiento ────────────────────────────────────────────────────
+cmd_prune() {
+    command -v rclone >/dev/null || { echo "falta rclone" >&2; exit 1; }
+    local before after
+    before="$(rclone lsf "$DEST/" --include '*.mp4' 2>/dev/null | wc -l | tr -d ' ')"
+    rclone delete "$DEST/" --min-age "${RETENTION_DAYS}d" --include '*.mp4' 2>&1 \
+        | grep -vE '^\s*$' | sed 's/^/  /'
+    rclone rmdirs "$DEST/" --leave-root 2>/dev/null
+    after="$(rclone lsf "$DEST/" --include '*.mp4' 2>/dev/null | wc -l | tr -d ' ')"
+    echo "🧹 retención (>${RETENTION_DAYS}d): $((before - after)) borrados, quedan ${after}"
+}
+
+cmd_backup_config() {
+    [ "$CONFIG_BACKUP" = 1 ] || { echo "CONFIG_BACKUP=0, no hago nada"; return; }
+    command -v rclone >/dev/null || { echo "falta rclone" >&2; exit 1; }
+    local tmp done; tmp="$(mktemp -d)"; done=""
+    [ -r "$HERE/config/ojota.conf" ] && { cp "$HERE/config/ojota.conf" "$tmp/"; done="$done ojota.conf"; }
+    [ -r "$HERE/config/profile" ]    && { cp "$HERE/config/profile" "$tmp/"; done="$done profile"; }
+    # rclone.conf: la copia del repo puede ser de root; si no, la personal
+    if [ -r "$HERE/config/rclone.conf" ]; then
+        cp "$HERE/config/rclone.conf" "$tmp/rclone.conf"; done="$done rclone.conf"
+    elif [ -r "$HOME/.config/rclone/rclone.conf" ]; then
+        cp "$HOME/.config/rclone/rclone.conf" "$tmp/rclone.conf"; done="$done rclone.conf"
+    fi
+    rclone copy "$tmp/" "$DEST/config-backup/" 2>&1 | grep -vE '^\s*$' | sed 's/^/  /'
+    rm -rf "$tmp"
+    echo "💾 respaldado en $DEST/config-backup/ →$done  (secretos — carpeta privada)"
 }
 
 # ── install / uninstall ──────────────────────────────────────────────
@@ -207,13 +247,15 @@ case "${1:-}" in
     install)       cmd_install ;;
     uninstall)     cmd_uninstall ;;
     logs)          tail -n "${2:-40}" "$LOG" ;;
+    prune)         cmd_prune ;;
+    backup-config) cmd_backup_config ;;
     test-notify)   "$HERE/bin/ojota-notify.sh" 3 "eyes" "👁 ojota — prueba" \
                        "Si ves esto, ntfy anda ($(date '+%H:%M'))" \
                        && echo "📨 enviada" ;;
     ""|-h|--help|help)
-        sed -n '2,10p' "$SELF" | sed 's/^# \{0,1\}//' ;;
+        sed -n '2,12p' "$SELF" | sed 's/^# \{0,1\}//' ;;
     *)
         echo "comando desconocido: $1" >&2
-        sed -n '2,10p' "$SELF" | sed 's/^# \{0,1\}//' >&2
+        sed -n '2,12p' "$SELF" | sed 's/^# \{0,1\}//' >&2
         exit 1 ;;
 esac

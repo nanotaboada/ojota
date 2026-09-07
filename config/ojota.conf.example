@@ -57,7 +57,17 @@ CAMERA_DOWN_ALERT_MINUTES=5 # alerta (prioridad alta) si la cámara no
 RCLONE_REMOTE="gdrive"
 RCLONE_PATH="ojota"
 RETENTION_DAYS=30           # borrar de Drive clips más viejos que esto
+RETENTION_CHECK_HOURS=24    # cada cuánto corre la limpieza
 PENDING_RETRY_MINUTES=3     # cada cuánto reintentar subidas que fallaron
+CONFIG_BACKUP=1             # subir config/ a Drive (config-backup/) para
+                           # poder reproducir el setup. OJO: incluye la
+                           # pass RTSP y el token — mantené la carpeta privada.
+
+# ── Heartbeat externo (opcional) ──────────────────────────────────────
+# Ping periódico a un servicio tipo healthchecks.io: si la Mac se apaga
+# (corte de luz, crash), ese servicio te avisa. Vacío = desactivado.
+HEARTBEAT_URL=""
+HEARTBEAT_MINUTES=15
 
 # ── Rutas ─────────────────────────────────────────────────────────────
 # Normalmente no hace falta: los scripts detectan la raíz del repo solos.

@@ -29,7 +29,11 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
     aviso al recuperarse, e hilo que reintenta las subidas pendientes.
 - **`bin/ojota`**: comando de control — `casa` / `afuera` (perfil),
   `status`, `start` / `stop` / `restart`, `logs`, `test-notify`,
-  `install` / `uninstall`.
+  `prune`, `backup-config`, `install` / `uninstall`.
+- **Mantenimiento (daemon)**: retención de clips en Drive cada
+  `RETENTION_CHECK_HOURS`, backup de `config/` a `config-backup/` al
+  arrancar y cada 7 días, y heartbeat opcional (`HEARTBEAT_URL`) para
+  detectar cortes de luz que apaguen la Mac.
 - **Servicio (LaunchDaemon)**: `deploy/com.nanotaboada.ojota.plist` +
   `bin/ojota install` / `uninstall` — corre a nivel sistema (arranca sin
   login) **como root** (obligatorio en macOS Sequoia: un daemon que baja a
@@ -48,6 +52,6 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 
 ### Estado
 
-Etapas 1–5 completas (entorno, captura + detección, Google Drive,
-integración + notificaciones, servicio). Pendiente: retención de clips en
-Drive + heartbeat externo (Etapa 6).
+Etapas 1–6 completas. Ideas para más adelante: auto-armado por presencia
+del celular en la LAN, ROI para acotar la zona de detección, validar los
+umbrales con luz de noche.
