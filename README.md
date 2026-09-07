@@ -1,4 +1,4 @@
-# ojota
+# 🩴 ojota
 
 ![ojota](docs/logo.svg)
 

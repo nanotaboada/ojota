@@ -56,7 +56,7 @@ cmd_status() {
     local pid cur segs pend
     pid="$(daemon_pid)"
     cur="$(cat "$PROFILE_FILE" 2>/dev/null || echo "$DEFAULT_PROFILE")"
-    echo "👁  ojota"
+    echo "🩴 ojota"
     [ "$cur" = casa ] \
         && echo "   perfil:   ⚪ casa · DESARMADO (no graba)" \
         || echo "   perfil:   🔴 afuera · ARMADO"
@@ -118,7 +118,7 @@ cmd_start() {
         [ -x "$PY" ] || { echo "falta el venv ($PY). Ver README, paso 2." >&2; exit 1; }
         nohup "$PY" "$DAEMON" >/dev/null 2>&1 &
         sleep 2
-        [ -n "$(daemon_pid)" ] && echo "👁  daemon arrancado (pid $(daemon_pid))" \
+        [ -n "$(daemon_pid)" ] && echo "🩴 daemon arrancado (pid $(daemon_pid))" \
             || { echo "🔴 no arrancó, mirá $LOG" >&2; exit 1; }
     fi
 }
@@ -151,7 +151,7 @@ cmd_restart() {
 
 svc_report() {
     if [ -n "$(daemon_pid)" ]; then
-        echo "👁  servicio corriendo (pid $(daemon_pid))"
+        echo "🩴 servicio corriendo (pid $(daemon_pid))"
     else
         echo "🔴 el servicio no levantó — mirá $HERE/logs/launchd.err.log" >&2
     fi
@@ -253,7 +253,7 @@ case "${1:-}" in
     logs)          tail -n "${2:-40}" "$LOG" ;;
     prune)         cmd_prune ;;
     backup-config) cmd_backup_config ;;
-    test-notify)   "$HERE/bin/ojota-notify.sh" 3 "eyes" "👁 ojota — prueba" \
+    test-notify)   "$HERE/bin/ojota-notify.sh" 3 "eyes" "🩴 ojota — prueba" \
                        "Si ves esto, ntfy anda ($(date '+%H:%M'))" \
                        && echo "📨 enviada" ;;
     ""|-h|--help|help)

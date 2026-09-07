@@ -279,7 +279,7 @@ class Daemon:
                 self.log.info("cámara: stream recuperado")
                 self.cam_down_notified = False
                 self._notify(3, "white_check_mark,camera",
-                             "ojota — cámara recuperada",
+                             "🩴 ojota — cámara recuperada",
                              "La cámara volvió a responder.")
             frame = np.frombuffer(buf, np.uint8).reshape(h, w)
             l, t, r, b = self.active_roi
@@ -522,7 +522,7 @@ class Daemon:
                 self.log.error(
                     "ALERTA: sin frames de la cámara hace %.0f min", gap / 60)
                 self._notify(5, "rotating_light,camera",
-                             "ojota — cámara sin señal",
+                             "🩴 ojota — cámara sin señal",
                              "Sin frames de la cámara hace %.0f min. "
                              "¿Se cayó el sistema?" % (gap / 60))
 

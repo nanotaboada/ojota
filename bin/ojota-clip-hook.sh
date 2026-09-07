@@ -90,7 +90,7 @@ if [ "$OJOTA_NOTIFY" = "1" ]; then
         link="$(rclone link "$DEST/$name" 2>>"$LOG")"
         hora="$(date -r "$event_ts" '+%H:%M' 2>/dev/null || date '+%H:%M')"
         durr="$(awk "BEGIN{printf \"%d\", $dur+0.5}" 2>/dev/null || echo '?')"
-        "$HERE/bin/ojota-notify.sh" 4 "eyes,movie" "Movimiento · $hora" \
+        "$HERE/bin/ojota-notify.sh" 4 "eyes,movie" "🩴 Movimiento · $hora" \
             "Clip de ${durr}s · tocá para ver en Drive" "$link" "$frame" \
             && echo "$now" >"$NOTIFY_STATE"
         log "hook: notificado ($name, link $link)"
