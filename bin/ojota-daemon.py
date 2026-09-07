@@ -451,13 +451,19 @@ class Daemon:
     def _heartbeat(self):
         if not self.c.heartbeat_url:
             return
+        self.log.info("heartbeat: cada %.0f min", self.c.heartbeat_min)
+        ok_prev = None
         while not self.stop.is_set():
             try:
-                subprocess.run(["curl", "-fsS", "-m", "10",
-                                self.c.heartbeat_url],
-                               capture_output=True, timeout=15)
+                r = subprocess.run(["curl", "-fsS", "-m", "10",
+                                    self.c.heartbeat_url],
+                                   capture_output=True, timeout=15)
+                ok = r.returncode == 0
             except Exception:  # noqa: BLE001
-                pass
+                ok = False
+            if ok != ok_prev:
+                self.log.info("heartbeat: %s", "OK" if ok else "FALLÓ el ping")
+                ok_prev = ok
             self.stop.wait(self.c.heartbeat_min * 60)
 
     # ── limpieza del ring buffer ────────────────────────────────────
