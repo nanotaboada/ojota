@@ -64,7 +64,7 @@ EVENT_BURST_MINUTES=15      # manda una alerta "muchos eventos" (algo raro)
 # armado; cuando vuelve a responder → desarmado (instantáneo). Reservá la
 # IP del celu en el router. Vacío = desactivado.
 PHONE_IP=""
-PRESENCE_POLL_SECONDS=25
+PRESENCE_POLL_SECONDS=10
 PRESENCE_AWAY_MINUTES=2    # sin ver el celu N min → armar
 
 # Alternativa por geofence (ntfy): removida del daemon por simplicidad,

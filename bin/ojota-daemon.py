@@ -73,7 +73,7 @@ class Conf:
         self.light_pct = float(d.get("LIGHT_CHANGE_PCT", 70))
         self.warmup_s = float(d.get("DETECT_WARMUP_SECONDS", 10))
         self.roi = _parse_roi(d.get("DETECT_ROI", "0,0,1,1"))
-        self.default_profile = d.get("DEFAULT_PROFILE", "afuera")
+        self.default_profile = d.get("DEFAULT_PROFILE", "armado")
         self.home = d.get("OJOTA_HOME") or ROOT
         self.profile_file = os.path.join(self.home, "config", "profile")
         self.segment_s = int(d.get("SEGMENT_SECONDS", 4))
@@ -93,7 +93,7 @@ class Conf:
         self.burst_count = int(d.get("EVENT_BURST_COUNT", 10))
         self.burst_min = float(d.get("EVENT_BURST_MINUTES", 15))
         self.phone_ip = d.get("PHONE_IP", "").strip()
-        self.presence_poll_s = float(d.get("PRESENCE_POLL_SECONDS", 25))
+        self.presence_poll_s = float(d.get("PRESENCE_POLL_SECONDS", 10))
         self.presence_away_min = float(d.get("PRESENCE_AWAY_MINUTES", 2))
         self.manual_hold = os.path.join(self.home, "config", "manual-hold")
         self.buffer_dir = os.path.join(self.home, "clips", "buffer")
@@ -279,7 +279,7 @@ class Daemon:
         while not self.stop.is_set():
             if not self.capture_enabled:
                 if not paused:
-                    self.log.info("%s: en pausa (perfil casa)", name)
+                    self.log.info("%s: en pausa (desarmado)", name)
                     paused = True
                 self.stop.wait(2)
                 continue
@@ -308,7 +308,7 @@ class Daemon:
             if self.stop.is_set():
                 return
             if not self.capture_enabled:
-                continue  # lo frenó el cambio a 'casa', no es un fallo
+                continue  # lo frenó el desarme, no es un fallo
             err = (p.stderr.read() or b"").decode(errors="replace").strip()
             self.log.warning("%s terminó (rc=%s) %s", name, rc,
                              _redact(err.splitlines()[-1]) if err else "")
@@ -641,7 +641,7 @@ class Daemon:
         while not self.stop.is_set():
             self.stop.wait(10)
             if not self.capture_enabled:
-                continue  # en 'casa' no hay frames a propósito
+                continue  # desarmado: no hay frames a propósito
             gap = time.time() - self.last_frame_ts
             if gap > limit and not self.cam_down_notified:
                 self.cam_down_notified = True

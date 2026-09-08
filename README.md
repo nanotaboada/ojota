@@ -15,8 +15,7 @@ audio y control total del pipeline.
 
 Dos conexiones RTSP a la misma cámara, cada una con un rol. El pipeline de
 captura solo corre **armado**; **desarmado** está todo en pausa salvo los
-chequeos de salud. Se cambia con `ojota salir` / `ojota volver` (o el
-auto-armado por geofence del celular).
+chequeos de salud. Se cambia con `ojota salir` / `ojota volver`, o solo: la presencia del celu en la WiFi.
 
 ```mermaid
 flowchart TB
@@ -175,7 +174,7 @@ Todo en `config/ojota.conf` (formato `KEY=VALUE`, lo leen bash y Python).
 | `HEARTBEAT_URL` | — | Ping periódico (healthchecks.io etc.); vacío = off |
 | `HEARTBEAT_MINUTES` | 15 | Cada cuánto se hace el ping |
 | `PHONE_IP` | — | IP del celu para el auto-armado por presencia; vacío = off |
-| `PRESENCE_POLL_SECONDS` | 25 | Cada cuánto se pinguea el celu |
+| `PRESENCE_POLL_SECONDS` | 10 | Cada cuánto se pinguea el celu |
 | `PRESENCE_AWAY_MINUTES` | 2 | Sin ver el celu N min → armar |
 
 ---
