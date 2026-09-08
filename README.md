@@ -81,7 +81,7 @@ flowchart TB
 - macOS (desarrollado y probado en un Mac con Intel)
 - [Homebrew](https://brew.sh)
 - `ffmpeg` — `brew install ffmpeg`
-- `rclone` — `brew install rclone` *(Etapa 3)*
+- `rclone` — `brew install rclone`
 - Python 3.11+ (para el venv)
 - Una cámara con RTSP accesible en la LAN, con IP fija o reservada por DHCP
 
@@ -295,21 +295,17 @@ llamar, healthchecks.io te avisa.
 
 ---
 
-## Estado del proyecto
+## Estado
 
-| Etapa | Estado |
-|---|---|
-| 1 — Entorno (ffmpeg) | ✅ |
-| 2 — Captura y detección | ✅ |
-| 3 — Google Drive (rclone) | ✅ |
-| 4 — Integración y notificaciones (ntfy) | ✅ |
-| 5 — Daemon (LaunchDaemon) | ✅ |
-| 6 — Mantenimiento (retención + backup + heartbeat) | ✅ |
+Funcionando 24/7 como servicio. En etapa de afinar la detección con uso
+real.
 
-**Ideas / pendientes:**
+**Pendientes / ideas:**
 
-- ROI para excluir zonas sin interés del encuadre (segunda vuelta de
-  calibración, tras unos días de uso real).
-- Validar `LIGHT_CHANGE_PCT` con cambios de luz reales (luz artificial,
-  atardecer, visión nocturna IR).
+- Afinar el auto-armado por presencia con salidas reales (¿el celu
+  reconecta a tiempo o hace falta bajar el poll / usar `arping`?).
+- ROI para excluir zonas sin interés del encuadre.
+- Validar `LIGHT_CHANGE_PCT` con luz de noche / visión nocturna IR.
+- Recordatorio si quedás armado con el celu presente hace horas (te
+  olvidaste el `ojota volver`).
 - Reemplazar `docs/logo.svg` (placeholder) por el logo definitivo.
