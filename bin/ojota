@@ -96,7 +96,7 @@ cmd_status() {
     echo
     if command -v rclone >/dev/null; then
         local n
-        n="$(rclone lsf "$DEST/" --include '*.mp4' 2>/dev/null | wc -l | tr -d ' ')"
+        n="$(rclone lsf "$DEST/" --include '*.mp4' --files-only 2>/dev/null | wc -l | tr -d ' ')"
         echo "☁️  Drive:    ${n} clips en $DEST/  (retención ${RETENTION_DAYS}d)"
         rclone about "${RCLONE_REMOTE}:" 2>/dev/null \
             | grep -E "^(Used|Free):" | sed 's/^/          /'
@@ -110,8 +110,8 @@ cmd_status() {
 cmd_start() {
     if installed; then
         need_root start
-        launchctl kickstart -p "system/$LABEL" >/dev/null 2>&1 \
-            || launchctl bootstrap system "$PLIST_SYSTEM" 2>/dev/null
+        launchctl bootstrap system "$PLIST_SYSTEM" 2>/dev/null \
+            || launchctl kickstart "system/$LABEL" 2>/dev/null
         sleep 2; svc_report
     else
         [ -n "$(daemon_pid)" ] && { echo "ya está corriendo (pid $(daemon_pid))"; return; }
@@ -142,8 +142,13 @@ cmd_stop() {
 cmd_restart() {
     if installed; then
         need_root restart
-        launchctl kickstart -kp "system/$LABEL" >/dev/null 2>&1
-        sleep 2; svc_report
+        local old; old="$(daemon_pid)"
+        launchctl kickstart -k "system/$LABEL" 2>/dev/null
+        for _ in $(seq 1 10); do
+            sleep 0.5
+            [ -n "$(daemon_pid)" ] && [ "$(daemon_pid)" != "$old" ] && break
+        done
+        svc_report
     else
         cmd_stop; cmd_start
     fi
@@ -161,11 +166,11 @@ svc_report() {
 cmd_prune() {
     command -v rclone >/dev/null || { echo "falta rclone" >&2; exit 1; }
     local before after
-    before="$(rclone lsf "$DEST/" --include '*.mp4' 2>/dev/null | wc -l | tr -d ' ')"
+    before="$(rclone lsf "$DEST/" --include '*.mp4' --files-only 2>/dev/null | wc -l | tr -d ' ')"
     rclone delete "$DEST/" --min-age "${RETENTION_DAYS}d" --include '*.mp4' 2>&1 \
         | grep -vE '^\s*$' | sed 's/^/  /'
     rclone rmdirs "$DEST/" --leave-root 2>/dev/null
-    after="$(rclone lsf "$DEST/" --include '*.mp4' 2>/dev/null | wc -l | tr -d ' ')"
+    after="$(rclone lsf "$DEST/" --include '*.mp4' --files-only 2>/dev/null | wc -l | tr -d ' ')"
     echo "🧹 retención (>${RETENTION_DAYS}d): $((before - after)) borrados, quedan ${after}"
 }
 
