@@ -62,7 +62,7 @@ EVENT_BURST_MINUTES=15      # manda una alerta "muchos eventos" (algo raro)
 #   openssl rand -hex 16                            # token
 NTFY_CONTROL_TOPIC=""
 CONTROL_TOKEN=""           # sin token, cualquiera con el topic te arma/desarma
-ARM_DELAY_MINUTES=4        # al "salir", esperar N min antes de armar
+ARM_DELAY_MINUTES=2        # al "salir", esperar N min antes de armar
                           # (evita flapping si volvés enseguida). "volver"
                           # es instantáneo.
 CONTROL_POLL_SECONDS=20    # cada cuánto consulta el topic de control

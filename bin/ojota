@@ -83,10 +83,11 @@ cmd_status() {
     [ -n "$ev" ] && echo "$ev" | sed 's/^/  /' || echo "  (sin eventos)"
 
     echo
-    # errores desde que arrancó el daemon actual (no arrastrar los viejos)
-    local since er
-    since="$(grep -n "ojota daemon arriba" "$LOG" 2>/dev/null | tail -1 | cut -d: -f1)"
-    er="$( { [ -n "$since" ] && tail -n "+$since" "$LOG"; grep -h . "$HOOK_LOG"; } 2>/dev/null \
+    # errores desde que arrancó el daemon actual (por timestamp)
+    local ts er
+    ts="$(grep -h "ojota daemon arriba" "$LOG" 2>/dev/null | tail -1 | cut -c1-19)"
+    er="$(cat "$LOG" "$HOOK_LOG" 2>/dev/null \
+          | { [ -n "$ts" ] && awk -v t="$ts" 'substr($0,1,19) >= t' || cat; } \
           | grep -E " ERROR | FALLÓ|falló" | tail -5)"
     if [ -n "$er" ]; then
         echo "⚠️  errores (corrida actual):"; echo "$er" | sed 's/^/  /'
