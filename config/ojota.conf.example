@@ -36,6 +36,10 @@ DEFAULT_PROFILE=armado     # estado al bootear si no hay config/profile
                            # (fail-safe: ante duda, armado)
 
 # ── Grabación del clip ────────────────────────────────────────────────
+LIVE_UPLOAD=1              # mientras estás armado, subir el ring buffer a
+                          # gdrive:.../live/ en continuo (retención ~3 min).
+                          # Así, si te llevan la Mac en medio de un evento,
+                          # el video ya está en Drive salvo los últimos ~10s.
 SEGMENT_SECONDS=4           # tamaño de cada segmento del ring buffer
 PRECAPTURE_SECONDS=8        # segundos antes del evento a incluir
 POSTCAPTURE_SECONDS=10      # seguir grabando tras el último movimiento

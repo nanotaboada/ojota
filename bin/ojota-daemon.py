@@ -81,8 +81,12 @@ class Conf:
         self.postcapture_s = int(d.get("POSTCAPTURE_SECONDS", 10))
         self.buffer_s = int(d.get("BUFFER_RETENTION_SECONDS", 60))
         self.cam_down_min = float(d.get("CAMERA_DOWN_ALERT_MINUTES", 5))
+        self.notify_silence_min = float(d.get("NOTIFY_SILENCE_MINUTES", 5))
+        self.live_upload = d.get("LIVE_UPLOAD", "1") == "1"
         self.pending_retry_min = float(d.get("PENDING_RETRY_MINUTES", 3))
         self.retention_check_h = float(d.get("RETENTION_CHECK_HOURS", 24))
+        self.rclone_dest = "%s:%s" % (d.get("RCLONE_REMOTE", "gdrive"),
+                                      d.get("RCLONE_PATH", "ojota"))
         self.config_backup = d.get("CONFIG_BACKUP", "1") == "1"
         self.heartbeat_url = d.get("HEARTBEAT_URL", "").strip()
         self.heartbeat_min = float(d.get("HEARTBEAT_MINUTES", 15))
@@ -130,9 +134,10 @@ class Daemon:
         self.last_frame_ts = time.time()
         self.cam_down_notified = False
         self.procs = []
-        # anti-burst
+        # anti-burst / avisos
         self.event_times = []
         self.last_burst_alert = 0.0
+        self.last_instant_notify = 0.0
         # estado armado / desarmado
         self.profile = None
         self.active_roi = conf.roi
@@ -393,7 +398,20 @@ class Daemon:
                 new_event = True
         if new_event:
             self.log.info("MOVIMIENTO detectado (%.1f%% de cambio)", pct)
+            self._instant_notify(ts)
             self._check_burst(ts)
+
+    def _instant_notify(self, ts):
+        # aviso apenas se detecta, sin esperar a que se arme el clip.
+        # respeta la misma ventana de silencio que el aviso por clip.
+        if not self.notify_enabled:
+            return
+        if ts - self.last_instant_notify < self.c.notify_silence_min * 60:
+            return
+        self.last_instant_notify = ts
+        hora = datetime.fromtimestamp(ts).strftime("%H:%M")
+        self._notify(4, "eyes,rotating_light", "🩴 Movimiento · " + hora,
+                     "Detección en curso — el video se está subiendo a Drive.")
 
     def _check_burst(self, ts):
         cutoff = ts - self.c.burst_min * 60
@@ -493,6 +511,34 @@ class Daemon:
             )
         except Exception as exc:  # noqa: BLE001
             self.log.error("no se pudo notificar: %s", exc)
+
+    # ── subida en vivo del ring buffer (mientras está armado) ──────
+    def _live_upload(self):
+        if not self.c.live_upload:
+            return
+        dest = self.c.rclone_dest + "/live/"
+        env = dict(os.environ)
+        logged = False
+        while not self.stop.is_set():
+            self.stop.wait(10)
+            if self.stop.is_set() or not self.capture_enabled:
+                logged = False
+                continue
+            if not logged:
+                self.log.info("live: subiendo el ring buffer a %s", dest)
+                logged = True
+            try:
+                subprocess.run(
+                    ["rclone", "copy", self.c.buffer_dir, dest,
+                     "--include", "*.ts", "--no-traverse",
+                     "--retries", "1", "-q"],
+                    env=env, capture_output=True, timeout=60)
+                subprocess.run(
+                    ["rclone", "delete", dest, "--min-age", "3m",
+                     "--include", "*.ts", "--drive-use-trash=false", "-q"],
+                    env=env, capture_output=True, timeout=60)
+            except Exception as exc:  # noqa: BLE001
+                self.log.warning("live: %s", exc)
 
     # ── reintento de subidas que quedaron pendientes ────────────────
     def _pending_flush(self):
@@ -616,6 +662,7 @@ class Daemon:
             threading.Thread(target=self._health_watch, name="health"),
             threading.Thread(target=self._profile_watch, name="profile"),
             threading.Thread(target=self._presence_watch, name="presence"),
+            threading.Thread(target=self._live_upload, name="live"),
             threading.Thread(target=self._pending_flush, name="flush"),
             threading.Thread(target=self._maintenance, name="maint"),
             threading.Thread(target=self._heartbeat, name="heartbeat"),

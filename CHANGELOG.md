@@ -13,6 +13,10 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
     resolución y pocos fps (numpy): umbral de área, mínimo de frames,
     warm-up y descarte de cambios de luz.
   - Armado de clips mp4 con pre/post-captura vía `concat`.
+  - Subida en vivo (`LIVE_UPLOAD`): armado, el ring buffer se copia a
+    `gdrive:.../live/` en continuo (retención ~3 min, borrado permanente).
+    Cubre el caso de que se lleven la Mac en medio de un evento. Aviso
+    instantáneo al detectar, sin esperar la subida del clip.
   - Estado en `config/profile` (`armado` / `desarmado`): armado = captura
     + detección + subida + notificaciones; desarmado = frena los dos
     ffmpeg, solo siguen los chequeos de salud. Comandos `ojota salir` /

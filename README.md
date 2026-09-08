@@ -65,6 +65,11 @@ flowchart TB
   en casa (alguien sospechoso en la puerta), `ojota salir` a mano.
 - **El segmentador graba siempre que está armado**, haya movimiento o no.
   Por eso la pre-captura es casi gratis: el pasado ya está en disco.
+- **Subida en vivo** (`LIVE_UPLOAD`): armado, el ring buffer se copia a
+  `gdrive:.../live/` cada ~10 s con retención de ~3 min. Si se llevan la
+  Mac o cortan la red en medio de un evento, el video está en Drive salvo
+  los últimos ~10 s — no hay que esperar a que el clip se arme y suba.
+  Además llega una notificación **al detectar**, no al terminar la subida.
 - **La detección** corre sobre el substream en gris a 3 fps: ~2-3% de un
   núcleo. Dispara cuando N frames seguidos (`MOTION_MIN_FRAMES`) superan
   `MOTION_AREA_PCT`; un cambio de casi toda la imagen se toma como cambio
@@ -152,6 +157,7 @@ Todo en `config/ojota.conf` (formato `KEY=VALUE`, lo leen bash y Python).
 | `LIGHT_CHANGE_PCT` | 70 | Cambio ≥ esto = cambio de luz, se ignora |
 | `DETECT_WARMUP_SECONDS` | 15 | Ignorar movimiento los primeros N s tras conectar |
 | `DETECT_ROI` | `0,0,1,1` | Zona de detección (izq,arr,der,ab en fracciones). No recorta el video. |
+| `LIVE_UPLOAD` | 1 | Armado: subir el ring buffer a `gdrive:.../live/` en continuo |
 | `SEGMENT_SECONDS` | 4 | Tamaño de cada segmento del ring buffer |
 | `PRECAPTURE_SECONDS` | 8 | Segundos antes del evento a incluir |
 | `POSTCAPTURE_SECONDS` | 10 | Seguir grabando tras el último movimiento |

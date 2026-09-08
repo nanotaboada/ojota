@@ -176,8 +176,8 @@ cmd_prune() {
     command -v rclone >/dev/null || { echo "falta rclone" >&2; exit 1; }
     local before after
     before="$(rclone lsf "$DEST/" --include '*.mp4' --files-only 2>/dev/null | wc -l | tr -d ' ')"
-    rclone delete "$DEST/" --min-age "${RETENTION_DAYS}d" --include '*.mp4' 2>&1 \
-        | grep -vE '^\s*$' | sed 's/^/  /'
+    rclone delete "$DEST/" --min-age "${RETENTION_DAYS}d" --include '*.mp4' \
+        --drive-use-trash=false 2>&1 | grep -vE '^\s*$' | sed 's/^/  /'
     rclone rmdirs "$DEST/" --leave-root 2>/dev/null
     after="$(rclone lsf "$DEST/" --include '*.mp4' --files-only 2>/dev/null | wc -l | tr -d ' ')"
     echo "🧹 retención (>${RETENTION_DAYS}d): $((before - after)) borrados, quedan ${after}"
