@@ -63,16 +63,8 @@ PHONE_IP=""
 PRESENCE_POLL_SECONDS=25
 PRESENCE_AWAY_MINUTES=2    # sin ver el celu N min → armar
 
-# ── Auto-armado por geofence (opcional, además de la presencia) ──────
-# El daemon escucha un 2do topic de ntfy. El celu (geofence en Automate /
-# Tasker) postea "salir:TOKEN" o "volver:TOKEN". Vacío = desactivado.
-#   echo "ojota-control-$(openssl rand -hex 16)"   # topic
-#   openssl rand -hex 16                            # token
-NTFY_CONTROL_TOPIC=""
-CONTROL_TOKEN=""           # sin token, cualquiera con el topic te arma/desarma
-ARM_DELAY_MINUTES=2        # al "salir" por geofence, esperar N min antes de
-                          # armar. "volver" es instantáneo.
-CONTROL_POLL_SECONDS=20    # cada cuánto consulta el topic de control
+# Alternativa por geofence (ntfy): removida del daemon por simplicidad,
+# ver commit f36a673 si el ping no alcanzara.
 
 # ── Google Drive (rclone) ─────────────────────────────────────────────
 RCLONE_REMOTE="gdrive"

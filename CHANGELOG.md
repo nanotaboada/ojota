@@ -21,9 +21,8 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
     respuesta por `PRESENCE_AWAY_MINUTES` → armado, al volver → desarmado.
     `ojota salir` a mano deja `config/manual-hold` para que la presencia
     no lo desarme. Cero apps en el celular.
-  - **Auto-armado por geofence** (opcional): el daemon escucha un 2do
-    topic de ntfy (`NTFY_CONTROL_TOPIC`) validado con `CONTROL_TOKEN`;
-    un cliente HTTP en el celu postea `salir:TOKEN` / `volver:TOKEN`.
+    (Un canal de control por ntfy para geofence se implementó y luego se
+    quitó por simplicidad; queda en el historial.)
   - Supervisión de subprocesos con backoff exponencial y alerta de
     cámara caída.
   - Log rotativo; credenciales redactadas en el log.

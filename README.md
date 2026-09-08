@@ -171,10 +171,6 @@ Todo en `config/ojota.conf` (formato `KEY=VALUE`, lo leen bash y Python).
 | `PHONE_IP` | — | IP del celu para el auto-armado por presencia; vacío = off |
 | `PRESENCE_POLL_SECONDS` | 25 | Cada cuánto se pinguea el celu |
 | `PRESENCE_AWAY_MINUTES` | 2 | Sin ver el celu N min → armar |
-| `NTFY_CONTROL_TOPIC` | — | Topic para el auto-armado por geofence; vacío = off |
-| `CONTROL_TOKEN` | — | Secreto que valida las órdenes de control |
-| `ARM_DELAY_MINUTES` | 2 | Al "salir" por geofence, esperar N min antes de armar |
-| `CONTROL_POLL_SECONDS` | 20 | Cada cuánto se consulta el topic de control |
 
 ---
 
@@ -215,20 +211,13 @@ Cero apps en el teléfono. Sirve incluso si te quedás en el edificio
 `ojota salir` a mano crea `config/manual-hold`: la presencia no lo desarma
 hasta que hagas `ojota volver` (o hasta que el celu se vaya de la red).
 
-### Auto-armado por geofence (opcional)
+### Alternativa: auto-armado por geofence
 
-Alternativa/complemento. El daemon escucha un 2do topic de ntfy
-(`NTFY_CONTROL_TOPIC`, secreto aparte). Cualquier cliente HTTP en el
-teléfono (geofence en Automate/Tasker, un Atajo de iOS) postea a ese topic:
-
-```
-curl -d "salir:$CONTROL_TOKEN"  https://ntfy.sh/$NTFY_CONTROL_TOPIC
-curl -d "volver:$CONTROL_TOKEN" https://ntfy.sh/$NTFY_CONTROL_TOPIC
-```
-
-`volver` desarma al instante; `salir` arma tras `ARM_DELAY_MINUTES`. El
-`CONTROL_TOKEN` evita que alguien con solo el topic te arme/desarme. Útil
-para salidas largas donde el geofence (radio ~400 m) sí tiene sentido.
+Si el ping a la LAN no alcanzara (por ejemplo tu WiFi llega a la calle),
+el daemon puede en cambio escuchar un topic de ntfy y una automatización
+de geofence en el celular (Automate, Tasker, Atajo de iOS) le postea
+`salir:TOKEN` / `volver:TOKEN`. Esa implementación se removió del daemon
+por simplicidad — está en el commit `f36a673` para reincorporar.
 
 ### Como servicio (24/7, arranca al bootear)
 
