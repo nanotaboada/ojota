@@ -86,6 +86,8 @@ class Conf:
         self.config_backup = d.get("CONFIG_BACKUP", "1") == "1"
         self.heartbeat_url = d.get("HEARTBEAT_URL", "").strip()
         self.heartbeat_min = float(d.get("HEARTBEAT_MINUTES", 15))
+        self.burst_count = int(d.get("EVENT_BURST_COUNT", 10))
+        self.burst_min = float(d.get("EVENT_BURST_MINUTES", 15))
         self.buffer_dir = os.path.join(self.home, "clips", "buffer")
         self.pending_dir = os.path.join(self.home, "clips", "pending")
         self.log_dir = os.path.join(self.home, "logs")
@@ -124,6 +126,9 @@ class Daemon:
         self.last_frame_ts = time.time()
         self.cam_down_notified = False
         self.procs = []
+        # anti-burst
+        self.event_times = []
+        self.last_burst_alert = 0.0
         # perfil (casa / afuera)
         self.profile = None
         self.active_roi = conf.roi
@@ -321,12 +326,29 @@ class Daemon:
 
     # ── manejo de eventos ───────────────────────────────────────────
     def _on_motion(self, ts, pct):
+        new_event = False
         with self.lock:
             self.last_motion = ts
             if not self.event_active:
                 self.event_active = True
                 self.event_start = ts
-                self.log.info("MOVIMIENTO detectado (%.1f%% de cambio)", pct)
+                new_event = True
+        if new_event:
+            self.log.info("MOVIMIENTO detectado (%.1f%% de cambio)", pct)
+            self._check_burst(ts)
+
+    def _check_burst(self, ts):
+        cutoff = ts - self.c.burst_min * 60
+        self.event_times = [t for t in self.event_times if t >= cutoff]
+        self.event_times.append(ts)
+        n = len(self.event_times)
+        if (n >= self.c.burst_count
+                and ts - self.last_burst_alert > self.c.burst_min * 60):
+            self.last_burst_alert = ts
+            self.log.warning("BURST: %d eventos en %g min", n, self.c.burst_min)
+            self._notify(5, "warning,eyes", "🩴 ojota — muchos eventos",
+                         "%d eventos de movimiento en %g min. "
+                         "Algo raro está pasando." % (n, self.c.burst_min))
 
     def _event_finalizer(self):
         while not self.stop.is_set():

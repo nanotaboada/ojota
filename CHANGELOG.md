@@ -28,8 +28,9 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
     clip y link a Drive) respetando una ventana de silencio que agrupa
     avisos seguidos sin frenar la grabación.
   - `bin/ojota-notify.sh`: helper de notificación push (ntfy).
-  - Daemon: alerta de prioridad alta si la cámara deja de responder,
-    aviso al recuperarse, e hilo que reintenta las subidas pendientes.
+  - Daemon: alertas de prioridad alta — cámara sin señal (con aviso al
+    recuperarse) y "muchos eventos" (`EVENT_BURST_COUNT` en
+    `EVENT_BURST_MINUTES`). Hilo que reintenta las subidas pendientes.
 - **`bin/ojota`**: comando de control — `afuera` / `casa` (con alias
   `armar` / `desarmar`), `status`, `start` / `stop` / `restart`, `logs`,
   `test-notify`, `prune`, `backup-config`, `install` / `uninstall`.

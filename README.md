@@ -159,6 +159,7 @@ Todo en `config/ojota.conf` (formato `KEY=VALUE`, lo leen bash y Python).
 | `NTFY_TOPIC` | — | Topic de ntfy.sh (secreto, generar aleatorio) |
 | `NOTIFY_SILENCE_MINUTES` | 5 | Ventana anti-spam de notificaciones |
 | `CAMERA_DOWN_ALERT_MINUTES` | 5 | Alerta si la cámara no responde por N min |
+| `EVENT_BURST_COUNT` / `EVENT_BURST_MINUTES` | 10 / 15 | Alerta "muchos eventos" si se acumulan |
 | `RCLONE_REMOTE` / `RCLONE_PATH` | `gdrive` / `ojota` | Destino en Drive |
 | `RETENTION_DAYS` | 30 | Borrar de Drive clips más viejos que esto |
 | `RETENTION_CHECK_HOURS` | 24 | Cada cuánto corre la limpieza |
@@ -217,9 +218,14 @@ Con el servicio instalado, `start` / `stop` / `restart` usan `launchctl`
 
 Instalá la app **ntfy** en el celular, suscribite al topic de tu config
 (o abrí `https://ntfy.sh/<tu-topic>` en el teléfono). Cada evento manda hora,
-un frame del clip y el link directo al video en Drive. Alerta de prioridad
-alta si la cámara deja de responder. La ventana de silencio agrupa avisos
-seguidos **sin afectar la grabación**.
+un frame del clip y el link directo al video en Drive. La ventana de
+silencio agrupa avisos seguidos **sin afectar la grabación**.
+
+Alertas de prioridad alta (aparte, sin ventana de silencio):
+- la cámara deja de responder (`CAMERA_DOWN_ALERT_MINUTES`)
+- se acumulan muchos eventos en poco tiempo — `EVENT_BURST_COUNT` en
+  `EVENT_BURST_MINUTES` (algo raro: tormenta de falsos positivos o
+  actividad sostenida en la puerta)
 
 ### Heartbeat externo (corte de luz)
 

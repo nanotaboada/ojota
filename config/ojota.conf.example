@@ -52,6 +52,8 @@ NOTIFY_SILENCE_MINUTES=5    # tras avisar, no volver a avisar por N min.
                            # graba y sube igual.
 CAMERA_DOWN_ALERT_MINUTES=5 # alerta (prioridad alta) si la cámara no
                            # responde por N min
+EVENT_BURST_COUNT=10        # si hay ≥ N eventos en EVENT_BURST_MINUTES,
+EVENT_BURST_MINUTES=15      # manda una alerta "muchos eventos" (algo raro)
 
 # ── Google Drive (rclone) ─────────────────────────────────────────────
 RCLONE_REMOTE="gdrive"
