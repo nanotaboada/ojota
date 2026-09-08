@@ -247,13 +247,16 @@ class Daemon:
     def _on_return(self):
         """Volviste: los clips de esta ventana casi seguro sos vos entrando.
         Marca una ventana (el hook los archiva sin notificar) y archiva los
-        que ya se subieron a Drive."""
+        que ya se subieron a Drive. Si no hubo evento reciente, silencio."""
         grace = self.c.return_grace_s
+        recent = time.time() - self.event_start < grace
         try:
             with open(self.c.return_window, "w") as fh:
                 fh.write(str(time.time() + grace) + "\n")
         except OSError:
             pass
+        if not recent:
+            return
         dest = self.c.rclone_dest
         try:
             r = subprocess.run(
@@ -262,17 +265,15 @@ class Daemon:
                  "--max-depth", "1", "--no-traverse", "-q"],
                 env=dict(os.environ), capture_output=True, text=True,
                 timeout=120)
-            moved = "" if r.returncode == 0 else r.stderr.strip()[:120]
+            err = "" if r.returncode == 0 else r.stderr.strip()[:120]
         except Exception as exc:  # noqa: BLE001
-            moved = str(exc)
-        if moved:
-            self.log.warning("volviste: no pude archivar en Drive: %s", moved)
+            err = str(exc)
+        if err:
+            self.log.warning("volviste: no pude archivar en Drive: %s", err)
         else:
-            self.log.info("volviste: clips recientes archivados en "
-                          "probablemente-vos/")
+            self.log.info("volviste: clips recientes → probablemente-vos/")
         self._notify(2, "house", "🩴 Volviste",
-                     "Los clips de los últimos %d min quedaron en "
-                     "'probablemente-vos'." % round(grace / 60))
+                     "Archivé en 'probablemente-vos' el clip de tu llegada.")
 
     # ── ffmpeg: segmentador (copia, sin re-encodear) ──────────────────
     def run_segmenter(self):
