@@ -27,13 +27,13 @@ DETECT_ROI="0,0,1,1"       # zona donde se busca movimiento (izq,arriba,der,
                            # abajo en fracciones 0-1). 0,0,1,1 = frame entero.
                            # NO recorta el video: el clip siempre es completo.
 
-# ── Perfiles casa / afuera ────────────────────────────────────────────
-# El daemon corre siempre. `ojota afuera` arma (captura + detección +
-# subida + notificaciones). `ojota casa` desarma: frena los dos ffmpeg,
-# no graba, no sube, no notifica. Solo siguen los chequeos de salud
-# (cámara caída, heartbeat).
-DEFAULT_PROFILE=afuera     # perfil al bootear (fail-safe: si se reinicia
-                           # mientras no estás, queda armado)
+# ── Armado / desarmado ───────────────────────────────────────────────
+# El daemon corre siempre. `ojota salir` (alias `armar`) arma: captura +
+# detección + subida + notificaciones. `ojota volver` (alias `desarmar`)
+# desarma: frena los dos ffmpeg, no graba nada; solo siguen los chequeos
+# de salud (cámara caída, heartbeat).
+DEFAULT_PROFILE=armado     # estado al bootear si no hay config/profile
+                           # (fail-safe: ante duda, armado)
 
 # ── Grabación del clip ────────────────────────────────────────────────
 SEGMENT_SECONDS=4           # tamaño de cada segmento del ring buffer
@@ -54,6 +54,18 @@ CAMERA_DOWN_ALERT_MINUTES=5 # alerta (prioridad alta) si la cámara no
                            # responde por N min
 EVENT_BURST_COUNT=10        # si hay ≥ N eventos en EVENT_BURST_MINUTES,
 EVENT_BURST_MINUTES=15      # manda una alerta "muchos eventos" (algo raro)
+
+# ── Auto-armado desde el celu (opcional) ─────────────────────────────
+# El daemon escucha un 2do topic de ntfy. El celu (geofence en Automate /
+# Tasker) postea "salir:TOKEN" o "volver:TOKEN". Vacío = desactivado.
+#   echo "ojota-control-$(openssl rand -hex 16)"   # topic
+#   openssl rand -hex 16                            # token
+NTFY_CONTROL_TOPIC=""
+CONTROL_TOKEN=""           # sin token, cualquiera con el topic te arma/desarma
+ARM_DELAY_MINUTES=4        # al "salir", esperar N min antes de armar
+                          # (evita flapping si volvés enseguida). "volver"
+                          # es instantáneo.
+CONTROL_POLL_SECONDS=20    # cada cuánto consulta el topic de control
 
 # ── Google Drive (rclone) ─────────────────────────────────────────────
 RCLONE_REMOTE="gdrive"

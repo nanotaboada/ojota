@@ -7,6 +7,7 @@ ring buffer de segmentos. Cuando hay movimiento se arma un clip mp4 con
 pre-captura y se llama al hook.
 """
 
+import json
 import os
 import re
 import shlex
@@ -88,6 +89,12 @@ class Conf:
         self.heartbeat_min = float(d.get("HEARTBEAT_MINUTES", 15))
         self.burst_count = int(d.get("EVENT_BURST_COUNT", 10))
         self.burst_min = float(d.get("EVENT_BURST_MINUTES", 15))
+        self.ntfy_server = (d.get("NTFY_SERVER", "https://ntfy.sh")
+                            .rstrip("/"))
+        self.control_topic = d.get("NTFY_CONTROL_TOPIC", "").strip()
+        self.control_token = d.get("CONTROL_TOKEN", "").strip()
+        self.arm_delay_min = float(d.get("ARM_DELAY_MINUTES", 4))
+        self.control_poll_s = float(d.get("CONTROL_POLL_SECONDS", 20))
         self.buffer_dir = os.path.join(self.home, "clips", "buffer")
         self.pending_dir = os.path.join(self.home, "clips", "pending")
         self.log_dir = os.path.join(self.home, "logs")
@@ -129,6 +136,8 @@ class Daemon:
         # anti-burst
         self.event_times = []
         self.last_burst_alert = 0.0
+        # canal de control (auto-armado desde el celu)
+        self.pending_arm_at = 0.0
         # perfil (casa / afuera)
         self.profile = None
         self.active_roi = conf.roi
@@ -136,12 +145,14 @@ class Daemon:
         self.capture_enabled = True   # afuera=True, casa=False (pausa total)
         self._apply_profile(self._read_profile(), initial=True)
 
-    # ── perfil casa / afuera ────────────────────────────────────────
+    # ── estado armado / desarmado ──────────────────────────────────
     def _read_profile(self):
         try:
             val = open(self.c.profile_file).read().strip().lower()
-            if val in ("casa", "afuera"):
+            if val in ("armado", "desarmado"):
                 return val
+            if val in ("casa", "afuera"):   # compat con archivos viejos
+                return "armado" if val == "afuera" else "desarmado"
         except FileNotFoundError:
             pass
         return self.c.default_profile
@@ -150,17 +161,17 @@ class Daemon:
         if name == self.profile:
             return
         self.profile = name
-        want_capture = name != "casa"
+        want_capture = name == "armado"
         self.notify_enabled = want_capture
         if want_capture != self.capture_enabled:
             self.capture_enabled = want_capture
             if want_capture:
                 self.last_frame_ts = time.time()   # gracia para el health
                 if not initial:
-                    self.log.info("perfil afuera: reanudo la captura")
+                    self.log.info("ARMADO: reanudo la captura")
             else:
                 if not initial:
-                    self.log.info("perfil casa: captura en pausa")
+                    self.log.info("DESARMADO: captura en pausa")
                 with self.lock:
                     self.event_active = False
                 for p in list(self.procs):
@@ -169,14 +180,75 @@ class Daemon:
                     except Exception:  # noqa: BLE001
                         pass
         elif not initial:
-            self.log.info("perfil -> %s", name)
+            self.log.info("estado -> %s", name)
 
     def _profile_watch(self):
-        # el archivo lo escribe `bin/ojota casa|afuera` (como usuario); el
-        # daemon solo lo lee. Si no existe, se usa DEFAULT_PROFILE.
+        # el archivo lo escribe `bin/ojota salir|volver` (usuario) o el
+        # canal de control (auto-armado). El daemon solo lo lee.
         while not self.stop.is_set():
+            if (self.pending_arm_at
+                    and time.time() >= self.pending_arm_at):
+                self.pending_arm_at = 0.0
+                self._write_profile("armado")
+                self.log.info("control: ARMADO (tras la espera)")
             self._apply_profile(self._read_profile())
             self.stop.wait(2)
+
+    def _write_profile(self, name):
+        try:
+            with open(self.c.profile_file, "w") as fh:
+                fh.write(name + "\n")
+        except OSError as exc:
+            self.log.error("no pude escribir el perfil: %s", exc)
+
+    # ── canal de control: auto-armado desde el celu ────────────────
+    def _control_watch(self):
+        if not self.c.control_topic:
+            return
+        if not self.c.control_token:
+            self.log.warning("control: SIN token — cualquiera con el topic "
+                             "puede armar/desarmar. Poné CONTROL_TOKEN.")
+        url = (f"{self.c.ntfy_server}/{self.c.control_topic}/json"
+               f"?poll=1&since={int(self.c.control_poll_s * 2)}s")
+        self.log.info("control: escuchando (poll %gs)", self.c.control_poll_s)
+        seen = []
+        while not self.stop.is_set():
+            try:
+                r = subprocess.run(["curl", "-fsS", "-m", "15", url],
+                                   capture_output=True, text=True, timeout=20)
+                for line in r.stdout.splitlines():
+                    try:
+                        msg = json.loads(line)
+                    except ValueError:
+                        continue
+                    if msg.get("event") != "message":
+                        continue
+                    mid = msg.get("id")
+                    if mid in seen:
+                        continue
+                    seen.append(mid)
+                    self._handle_control(msg.get("message", ""))
+                seen = seen[-50:]
+            except Exception:  # noqa: BLE001
+                pass
+            self.stop.wait(self.c.control_poll_s)
+
+    def _handle_control(self, text):
+        body, _, tok = text.strip().partition(":")
+        body = body.strip().lower()
+        if self.c.control_token and tok.strip() != self.c.control_token:
+            self.log.warning("control: token inválido, ignoro")
+            return
+        if body in ("volver", "desarmar"):
+            self.pending_arm_at = 0.0
+            self._write_profile("desarmado")
+            self.log.info("control: DESARMADO (llegaste)")
+        elif body in ("salir", "armar"):
+            self.pending_arm_at = time.time() + self.c.arm_delay_min * 60
+            self.log.info("control: salir → armo en %g min",
+                          self.c.arm_delay_min)
+        else:
+            self.log.warning("control: comando desconocido %r", body[:20])
 
     # ── ffmpeg: segmentador (copia, sin re-encodear) ──────────────────
     def run_segmenter(self):
@@ -557,6 +629,7 @@ class Daemon:
             threading.Thread(target=self._buffer_cleaner, name="cleaner"),
             threading.Thread(target=self._health_watch, name="health"),
             threading.Thread(target=self._profile_watch, name="profile"),
+            threading.Thread(target=self._control_watch, name="control"),
             threading.Thread(target=self._pending_flush, name="flush"),
             threading.Thread(target=self._maintenance, name="maint"),
             threading.Thread(target=self._heartbeat, name="heartbeat"),

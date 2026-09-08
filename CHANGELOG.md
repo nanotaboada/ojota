@@ -13,10 +13,14 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
     resolución y pocos fps (numpy): umbral de área, mínimo de frames,
     warm-up y descarte de cambios de luz.
   - Armado de clips mp4 con pre/post-captura vía `concat`.
-  - Perfiles por archivo `config/profile`: `afuera` (armado: captura +
-    detección + subida + notificaciones) / `casa` (desarmado: frena los
-    dos ffmpeg, solo siguen los chequeos de salud). Alias `armar` /
-    `desarmar` para armar a mano estando en casa.
+  - Estado en `config/profile` (`armado` / `desarmado`): armado = captura
+    + detección + subida + notificaciones; desarmado = frena los dos
+    ffmpeg, solo siguen los chequeos de salud. Comandos `ojota salir` /
+    `ojota volver` (alias `armar` / `desarmar`).
+  - **Auto-armado**: el daemon escucha un 2do topic de ntfy
+    (`NTFY_CONTROL_TOPIC`) validado con `CONTROL_TOKEN`. Una automatización
+    de geofence en el celular postea `salir:TOKEN` / `volver:TOKEN`.
+    `volver` desarma al instante; `salir` arma tras `ARM_DELAY_MINUTES`.
   - Supervisión de subprocesos con backoff exponencial y alerta de
     cámara caída.
   - Log rotativo; credenciales redactadas en el log.
@@ -31,8 +35,8 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
   - Daemon: alertas de prioridad alta — cámara sin señal (con aviso al
     recuperarse) y "muchos eventos" (`EVENT_BURST_COUNT` en
     `EVENT_BURST_MINUTES`). Hilo que reintenta las subidas pendientes.
-- **`bin/ojota`**: comando de control — `afuera` / `casa` (con alias
-  `armar` / `desarmar`), `status`, `start` / `stop` / `restart`, `logs`,
+- **`bin/ojota`**: comando de control — `salir` / `volver` (alias `armar`
+  / `desarmar`), `status`, `start` / `stop` / `restart`, `logs`,
   `test-notify`, `prune`, `backup-config`, `install` / `uninstall`.
 - **Mantenimiento (daemon)**: retención de clips en Drive cada
   `RETENTION_CHECK_HOURS`, backup de `config/` a `config-backup/` al

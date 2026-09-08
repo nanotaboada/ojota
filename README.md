@@ -14,17 +14,18 @@ audio y control total del pipeline.
 ## Cómo funciona
 
 Dos conexiones RTSP a la misma cámara, cada una con un rol. El pipeline de
-captura solo corre con el perfil **armado** (`afuera`); en `casa` está todo
-en pausa salvo los chequeos de salud.
+captura solo corre **armado**; **desarmado** está todo en pausa salvo los
+chequeos de salud. Se cambia con `ojota salir` / `ojota volver` (o el
+auto-armado por geofence del celular).
 
 ```mermaid
 flowchart TB
     CAM["📷 Cámara IP<br/>RTSP en la LAN"]
-    PROF{"perfil"}
+    PROF{"estado"}
 
     CAM --> PROF
-    PROF -->|"casa · desarmado"| PAUSE["captura en pausa<br/>(no graba / no sube / no notifica)"]
-    PROF -->|"afuera · armado"| SEG
+    PROF -->|"desarmado"| PAUSE["captura en pausa<br/>(no graba / no sube / no notifica)"]
+    PROF -->|"armado"| SEG
 
     subgraph DAEMON["ojota-daemon.py · pipeline armado"]
         direction TB
@@ -49,7 +50,7 @@ flowchart TB
     HOOK -.->|"borra el local al confirmar"| PEND
     NTFY --> PHONE["📱 Celular"]
 
-    subgraph SALUD["siempre activo (en los dos perfiles)"]
+    subgraph SALUD["siempre activo (armado o no)"]
         direction TB
         HL["cámara sin señal → ntfy urgente"]
         HB["heartbeat → healthchecks.io → corte de luz"]
@@ -58,10 +59,10 @@ flowchart TB
     end
 ```
 
-- **Armado / desarmado**: `afuera` = graba, sube y notifica. `casa` = frena
-  los dos ffmpeg; solo siguen los chequeos de salud. La lógica es "esto
-  funciona cuando no estás"; si necesitás grabar estando en casa (alguien
-  sospechoso en la puerta), `ojota afuera` a mano.
+- **Armado / desarmado**: `ojota salir` graba, sube y notifica; `ojota
+  volver` frena los dos ffmpeg y solo siguen los chequeos de salud. La
+  lógica es "esto funciona cuando no estás"; si necesitás grabar estando
+  en casa (alguien sospechoso en la puerta), `ojota salir` a mano.
 - **El segmentador graba siempre que está armado**, haya movimiento o no.
   Por eso la pre-captura es casi gratis: el pasado ya está en disco.
 - **La detección** corre sobre el substream en gris a 3 fps: ~2-3% de un
@@ -155,7 +156,7 @@ Todo en `config/ojota.conf` (formato `KEY=VALUE`, lo leen bash y Python).
 | `PRECAPTURE_SECONDS` | 8 | Segundos antes del evento a incluir |
 | `POSTCAPTURE_SECONDS` | 10 | Seguir grabando tras el último movimiento |
 | `BUFFER_RETENTION_SECONDS` | 60 | Historial a mantener en el ring buffer |
-| `DEFAULT_PROFILE` | `afuera` | Perfil al bootear |
+| `DEFAULT_PROFILE` | `armado` | Estado al bootear si no hay config/profile |
 | `NTFY_TOPIC` | — | Topic de ntfy.sh (secreto, generar aleatorio) |
 | `NOTIFY_SILENCE_MINUTES` | 5 | Ventana anti-spam de notificaciones |
 | `CAMERA_DOWN_ALERT_MINUTES` | 5 | Alerta si la cámara no responde por N min |
@@ -167,15 +168,19 @@ Todo en `config/ojota.conf` (formato `KEY=VALUE`, lo leen bash y Python).
 | `CONFIG_BACKUP` | 1 | Subir `config/` a Drive (`config-backup/`) — incluye secretos |
 | `HEARTBEAT_URL` | — | Ping periódico (healthchecks.io etc.); vacío = off |
 | `HEARTBEAT_MINUTES` | 15 | Cada cuánto se hace el ping |
+| `NTFY_CONTROL_TOPIC` | — | Topic para el auto-armado desde el celu; vacío = off |
+| `CONTROL_TOKEN` | — | Secreto que valida las órdenes de control |
+| `ARM_DELAY_MINUTES` | 4 | Al "salir", esperar N min antes de armar |
+| `CONTROL_POLL_SECONDS` | 20 | Cada cuánto se consulta el topic de control |
 
 ---
 
 ## Operación
 
 ```sh
-bin/ojota afuera          # armar: graba, sube y notifica  (alias: armar)
-bin/ojota casa            # desarmar: pausa total           (alias: desarmar)
-bin/ojota status          # perfil, daemon, servicio, buffer, eventos, errores, Drive
+bin/ojota salir           # armar: graba, sube y notifica   (alias: armar)
+bin/ojota volver          # desarmar: pausa total           (alias: desarmar)
+bin/ojota status          # estado, daemon, servicio, buffer, eventos, errores, Drive
 bin/ojota start | stop | restart
 bin/ojota logs [N]        # últimas N líneas del log
 bin/ojota test-notify     # mandar una notificación de prueba
@@ -189,9 +194,24 @@ bin/ojota backup-config   # subir config/ a Drive (config-backup/)
 `prune` y `backup-config` también corren solos desde el daemon (retención
 cada `RETENTION_CHECK_HOURS`, backup al arrancar y cada 7 días).
 
-Cambiar de perfil también se puede escribiendo `casa` / `afuera` en
-`config/profile`; el daemon lo toma en ~2 s. Al bootear usa lo que diga
-ese archivo (o `DEFAULT_PROFILE` si no existe).
+El estado se guarda en `config/profile` (`armado` / `desarmado`); el daemon
+lo toma en ~2 s. Al bootear usa lo que diga ese archivo, o `DEFAULT_PROFILE`
+si no existe.
+
+### Auto-armado desde el celular
+
+Opcional. El daemon escucha un 2do topic de ntfy (`NTFY_CONTROL_TOPIC`,
+secreto aparte). Una automatización en el teléfono (geofence en Automate,
+Tasker, etc.) postea `salir:TOKEN` o `volver:TOKEN` a ese topic:
+
+```
+curl -d "salir:$CONTROL_TOKEN"  https://ntfy.sh/$NTFY_CONTROL_TOPIC
+curl -d "volver:$CONTROL_TOKEN" https://ntfy.sh/$NTFY_CONTROL_TOPIC
+```
+
+`volver` desarma al instante. `salir` arma recién tras `ARM_DELAY_MINUTES`
+(evita flapping si volvés enseguida). El `CONTROL_TOKEN` evita que alguien
+con solo el topic te arme/desarme.
 
 ### Como servicio (24/7, arranca al bootear)
 
@@ -271,8 +291,8 @@ llamar, healthchecks.io te avisa.
 
 **Ideas / pendientes:**
 
-- Auto-armado: detectar presencia del celular en la LAN y cambiar
-  `casa` / `afuera` solo.
+- Auto-armado: el daemon ya escucha el topic de control; falta la
+  automatización de geofence en el celular (Automate / Tasker).
 - ROI para excluir zonas sin interés del encuadre (segunda vuelta de
   calibración, tras unos días de uso real).
 - Validar `LIGHT_CHANGE_PCT` con cambios de luz reales (luz artificial,
