@@ -95,7 +95,9 @@ class Conf:
         self.phone_ip = d.get("PHONE_IP", "").strip()
         self.presence_poll_s = float(d.get("PRESENCE_POLL_SECONDS", 10))
         self.presence_away_min = float(d.get("PRESENCE_AWAY_MINUTES", 2))
+        self.return_grace_s = float(d.get("RETURN_GRACE_SECONDS", 120))
         self.manual_hold = os.path.join(self.home, "config", "manual-hold")
+        self.return_window = os.path.join(self.home, "clips", ".return-window")
         self.buffer_dir = os.path.join(self.home, "clips", "buffer")
         self.pending_dir = os.path.join(self.home, "clips", "pending")
         self.log_dir = os.path.join(self.home, "logs")
@@ -216,6 +218,7 @@ class Daemon:
                     else:
                         self.log.info("presencia: volviste → DESARMADO")
                         self._write_profile("desarmado")
+                        self._on_return()
             elif was_home:
                 gap = time.time() - last_seen
                 if gap > self.c.presence_away_min * 60:
@@ -240,6 +243,36 @@ class Daemon:
             os.unlink(self.c.manual_hold)
         except FileNotFoundError:
             pass
+
+    def _on_return(self):
+        """Volviste: los clips de esta ventana casi seguro sos vos entrando.
+        Marca una ventana (el hook los archiva sin notificar) y archiva los
+        que ya se subieron a Drive."""
+        grace = self.c.return_grace_s
+        try:
+            with open(self.c.return_window, "w") as fh:
+                fh.write(str(time.time() + grace) + "\n")
+        except OSError:
+            pass
+        dest = self.c.rclone_dest
+        try:
+            r = subprocess.run(
+                ["rclone", "move", dest, dest + "/probablemente-vos",
+                 "--include", "*.mp4", "--max-age", "%ds" % (grace + 60),
+                 "--max-depth", "1", "--no-traverse", "-q"],
+                env=dict(os.environ), capture_output=True, text=True,
+                timeout=120)
+            moved = "" if r.returncode == 0 else r.stderr.strip()[:120]
+        except Exception as exc:  # noqa: BLE001
+            moved = str(exc)
+        if moved:
+            self.log.warning("volviste: no pude archivar en Drive: %s", moved)
+        else:
+            self.log.info("volviste: clips recientes archivados en "
+                          "probablemente-vos/")
+        self._notify(2, "house", "🩴 Volviste",
+                     "Los clips de los últimos %d min quedaron en "
+                     "'probablemente-vos'." % round(grace / 60))
 
     # ── ffmpeg: segmentador (copia, sin re-encodear) ──────────────────
     def run_segmenter(self):
@@ -401,10 +434,16 @@ class Daemon:
             self._instant_notify(ts)
             self._check_burst(ts)
 
+    def _in_return_window(self):
+        try:
+            return time.time() < float(open(self.c.return_window).read())
+        except (OSError, ValueError):
+            return False
+
     def _instant_notify(self, ts):
         # aviso apenas se detecta, sin esperar a que se arme el clip.
         # respeta la misma ventana de silencio que el aviso por clip.
-        if not self.notify_enabled:
+        if not self.notify_enabled or self._in_return_window():
             return
         if ts - self.last_instant_notify < self.c.notify_silence_min * 60:
             return
@@ -414,6 +453,8 @@ class Daemon:
                      "Detección en curso — el video se está subiendo a Drive.")
 
     def _check_burst(self, ts):
+        if self._in_return_window():
+            return
         cutoff = ts - self.c.burst_min * 60
         self.event_times = [t for t in self.event_times if t >= cutoff]
         self.event_times.append(ts)

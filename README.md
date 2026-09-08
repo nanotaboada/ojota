@@ -176,6 +176,7 @@ Todo en `config/ojota.conf` (formato `KEY=VALUE`, lo leen bash y Python).
 | `PHONE_IP` | — | IP del celu para el auto-armado por presencia; vacío = off |
 | `PRESENCE_POLL_SECONDS` | 10 | Cada cuánto se pinguea el celu |
 | `PRESENCE_AWAY_MINUTES` | 2 | Sin ver el celu N min → armar |
+| `RETURN_GRACE_SECONDS` | 120 | Al volver, clips de estos últimos N s → `probablemente-vos/` |
 
 ---
 
@@ -215,6 +216,11 @@ Cero apps en el teléfono. Sirve incluso si te quedás en el edificio
 
 `ojota salir` a mano crea `config/manual-hold`: la presencia no lo desarma
 hasta que hagas `ojota volver` (o hasta que el celu se vaya de la red).
+
+**Al volver**, los clips de los últimos `RETURN_GRACE_SECONDS` casi seguro
+sos vos entrando (el WiFi del celu tarda en reconectar): el daemon los
+mueve a `gdrive:ojota/probablemente-vos/` y no notifica. No los borra —
+si alguien te siguió, el clip te tiene a vos y a esa persona.
 
 ### Alternativa: auto-armado por geofence
 

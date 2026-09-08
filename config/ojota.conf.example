@@ -66,6 +66,9 @@ EVENT_BURST_MINUTES=15      # manda una alerta "muchos eventos" (algo raro)
 PHONE_IP=""
 PRESENCE_POLL_SECONDS=10
 PRESENCE_AWAY_MINUTES=2    # sin ver el celu N min → armar
+RETURN_GRACE_SECONDS=120   # al volver, los clips de estos últimos N s se
+                          # archivan en probablemente-vos/ sin notificar
+                          # (sos vos entrando). No se borran.
 
 # Alternativa por geofence (ntfy): removida del daemon por simplicidad,
 # ver commit f36a673 si el ping no alcanzara.

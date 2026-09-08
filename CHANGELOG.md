@@ -24,7 +24,9 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
   - **Auto-armado por presencia**: el daemon pinguea `PHONE_IP`; sin
     respuesta por `PRESENCE_AWAY_MINUTES` → armado, al volver → desarmado.
     `ojota salir` a mano deja `config/manual-hold` para que la presencia
-    no lo desarme. Cero apps en el celular.
+    no lo desarme. Cero apps en el celular. Al volver, los clips de
+    los últimos `RETURN_GRACE_SECONDS` (sos vos entrando) van a
+    `probablemente-vos/` sin notificar (no se borran).
     (Un canal de control por ntfy para geofence se implementó y luego se
     quitó por simplicidad; queda en el historial.)
   - Supervisión de subprocesos con backoff exponencial y alerta de

@@ -23,6 +23,7 @@ CONF="${OJOTA_CONF:-$HERE/config/ojota.conf}"
 
 LOG="$HERE/logs/ojota-hook.log"
 NOTIFY_STATE="$HERE/clips/.last_notify"
+RETURN_WINDOW="$HERE/clips/.return-window"
 DEST="${RCLONE_REMOTE}:${RCLONE_PATH}"
 RCLONE_OPTS=(--retries 5 --retries-sleep 15s --low-level-retries 10
             --contimeout 20s --timeout 120s)
@@ -55,15 +56,23 @@ if ! mkdir "$lock" 2>/dev/null; then
 fi
 trap 'rmdir "$lock" 2>/dev/null' EXIT
 
+# ── ¿ventana de "volviste"? → archivar sin notificar ────────────────
+subdir=""
+if [ -f "$RETURN_WINDOW" ] && [ "$(date +%s)" -lt "$(cat "$RETURN_WINDOW" 2>/dev/null || echo 0)" ]; then
+    subdir="/probablemente-vos"
+    OJOTA_NOTIFY=0
+    log "hook: $name en ventana de 'volviste' → probablemente-vos/, sin aviso"
+fi
+
 # ── 1. subir ────────────────────────────────────────────────────────
 local_size="$(stat -f%z "$clip" 2>/dev/null || echo 0)"
-if ! rclone copy "${RCLONE_OPTS[@]}" "$clip" "$DEST/" 2>>"$LOG"; then
+if ! rclone copy "${RCLONE_OPTS[@]}" "$clip" "$DEST$subdir/" 2>>"$LOG"; then
     log "hook: FALLÓ la subida de $name — queda en pending/ para reintentar"
     exit 1
 fi
 
 # ── 2. verificar ────────────────────────────────────────────────────
-remote_size="$(rclone size --json "$DEST/$name" 2>/dev/null \
+remote_size="$(rclone size --json "$DEST$subdir/$name" 2>/dev/null \
                | sed -n 's/.*"bytes":\([0-9]*\).*/\1/p')"
 if [ -z "$remote_size" ] || [ "$remote_size" != "$local_size" ]; then
     log "hook: verificación falló de $name (local=$local_size remoto=${remote_size:-?}) — no borro"
@@ -87,7 +96,7 @@ if [ "$OJOTA_NOTIFY" = "1" ]; then
     last="$(cat "$NOTIFY_STATE" 2>/dev/null || echo 0)"
     silence=$(( NOTIFY_SILENCE_MINUTES * 60 ))
     if [ $(( now - last )) -ge "$silence" ]; then
-        link="$(rclone link "$DEST/$name" 2>>"$LOG")"
+        link="$(rclone link "$DEST$subdir/$name" 2>>"$LOG")"
         hora="$(date -r "$event_ts" '+%H:%M' 2>/dev/null || date '+%H:%M')"
         durr="$(awk "BEGIN{printf \"%d\", $dur+0.5}" 2>/dev/null || echo '?')"
         "$HERE/bin/ojota-notify.sh" 4 "eyes,movie" "🩴 Movimiento · $hora" \
