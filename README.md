@@ -168,9 +168,12 @@ Todo en `config/ojota.conf` (formato `KEY=VALUE`, lo leen bash y Python).
 | `CONFIG_BACKUP` | 1 | Subir `config/` a Drive (`config-backup/`) — incluye secretos |
 | `HEARTBEAT_URL` | — | Ping periódico (healthchecks.io etc.); vacío = off |
 | `HEARTBEAT_MINUTES` | 15 | Cada cuánto se hace el ping |
-| `NTFY_CONTROL_TOPIC` | — | Topic para el auto-armado desde el celu; vacío = off |
+| `PHONE_IP` | — | IP del celu para el auto-armado por presencia; vacío = off |
+| `PRESENCE_POLL_SECONDS` | 25 | Cada cuánto se pinguea el celu |
+| `PRESENCE_AWAY_MINUTES` | 2 | Sin ver el celu N min → armar |
+| `NTFY_CONTROL_TOPIC` | — | Topic para el auto-armado por geofence; vacío = off |
 | `CONTROL_TOKEN` | — | Secreto que valida las órdenes de control |
-| `ARM_DELAY_MINUTES` | 4 | Al "salir", esperar N min antes de armar |
+| `ARM_DELAY_MINUTES` | 2 | Al "salir" por geofence, esperar N min antes de armar |
 | `CONTROL_POLL_SECONDS` | 20 | Cada cuánto se consulta el topic de control |
 
 ---
@@ -198,20 +201,34 @@ El estado se guarda en `config/profile` (`armado` / `desarmado`); el daemon
 lo toma en ~2 s. Al bootear usa lo que diga ese archivo, o `DEFAULT_PROFILE`
 si no existe.
 
-### Auto-armado desde el celular
+### Auto-armado por presencia del celular (recomendado)
 
-Opcional. El daemon escucha un 2do topic de ntfy (`NTFY_CONTROL_TOPIC`,
-secreto aparte). Una automatización en el teléfono (geofence en Automate,
-Tasker, etc.) postea `salir:TOKEN` o `volver:TOKEN` a ese topic:
+El daemon pinguea `PHONE_IP` cada `PRESENCE_POLL_SECONDS`. Si el celu no
+responde por `PRESENCE_AWAY_MINUTES` seguidos → **armado**; cuando vuelve a
+responder → **desarmado** (instantáneo). Un ping suelto que un celu dormido
+no contesta no cuenta: alcanza con que responda uno en la ventana.
+
+Setup: reservá la IP del celu en el router (DHCP) y ponela en `PHONE_IP`.
+Cero apps en el teléfono. Sirve incluso si te quedás en el edificio
+(lavadero, gimnasio) siempre que salgas del alcance de tu WiFi.
+
+`ojota salir` a mano crea `config/manual-hold`: la presencia no lo desarma
+hasta que hagas `ojota volver` (o hasta que el celu se vaya de la red).
+
+### Auto-armado por geofence (opcional)
+
+Alternativa/complemento. El daemon escucha un 2do topic de ntfy
+(`NTFY_CONTROL_TOPIC`, secreto aparte). Cualquier cliente HTTP en el
+teléfono (geofence en Automate/Tasker, un Atajo de iOS) postea a ese topic:
 
 ```
 curl -d "salir:$CONTROL_TOKEN"  https://ntfy.sh/$NTFY_CONTROL_TOPIC
 curl -d "volver:$CONTROL_TOKEN" https://ntfy.sh/$NTFY_CONTROL_TOPIC
 ```
 
-`volver` desarma al instante. `salir` arma recién tras `ARM_DELAY_MINUTES`
-(evita flapping si volvés enseguida). El `CONTROL_TOKEN` evita que alguien
-con solo el topic te arme/desarme.
+`volver` desarma al instante; `salir` arma tras `ARM_DELAY_MINUTES`. El
+`CONTROL_TOKEN` evita que alguien con solo el topic te arme/desarme. Útil
+para salidas largas donde el geofence (radio ~400 m) sí tiene sentido.
 
 ### Como servicio (24/7, arranca al bootear)
 
@@ -291,8 +308,6 @@ llamar, healthchecks.io te avisa.
 
 **Ideas / pendientes:**
 
-- Auto-armado: el daemon ya escucha el topic de control; falta la
-  automatización de geofence en el celular (Automate / Tasker).
 - ROI para excluir zonas sin interés del encuadre (segunda vuelta de
   calibración, tras unos días de uso real).
 - Validar `LIGHT_CHANGE_PCT` con cambios de luz reales (luz artificial,

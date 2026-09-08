@@ -2,6 +2,7 @@
 config/ojota.conf
 config/profile
 config/rclone.conf
+config/manual-hold
 clips/
 logs/
 *.log

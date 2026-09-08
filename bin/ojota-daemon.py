@@ -95,6 +95,10 @@ class Conf:
         self.control_token = d.get("CONTROL_TOKEN", "").strip()
         self.arm_delay_min = float(d.get("ARM_DELAY_MINUTES", 4))
         self.control_poll_s = float(d.get("CONTROL_POLL_SECONDS", 20))
+        self.phone_ip = d.get("PHONE_IP", "").strip()
+        self.presence_poll_s = float(d.get("PRESENCE_POLL_SECONDS", 25))
+        self.presence_away_min = float(d.get("PRESENCE_AWAY_MINUTES", 2))
+        self.manual_hold = os.path.join(self.home, "config", "manual-hold")
         self.buffer_dir = os.path.join(self.home, "clips", "buffer")
         self.pending_dir = os.path.join(self.home, "clips", "pending")
         self.log_dir = os.path.join(self.home, "logs")
@@ -232,6 +236,51 @@ class Daemon:
             except Exception:  # noqa: BLE001
                 pass
             self.stop.wait(self.c.control_poll_s)
+
+    # ── presencia del celu en la WiFi ─────────────────────────────
+    def _presence_watch(self):
+        if not self.c.phone_ip:
+            return
+        self.log.info("presencia: %s cada %gs (armo tras %g min sin verlo)",
+                      self.c.phone_ip, self.c.presence_poll_s,
+                      self.c.presence_away_min)
+        last_seen = time.time()
+        was_home = True
+        while not self.stop.is_set():
+            if self._ping(self.c.phone_ip):
+                last_seen = time.time()
+                if not was_home:
+                    was_home = True
+                    if os.path.exists(self.c.manual_hold):
+                        self.log.info("presencia: volviste (hold manual, "
+                                      "no desarmo)")
+                    else:
+                        self.log.info("presencia: volviste → DESARMADO")
+                        self._write_profile("desarmado")
+            elif was_home:
+                gap = time.time() - last_seen
+                if gap > self.c.presence_away_min * 60:
+                    was_home = False
+                    self.log.info("presencia: sin verte hace %.0f min → "
+                                  "ARMADO", gap / 60)
+                    self._clear_manual_hold()
+                    self._write_profile("armado")
+            self.stop.wait(self.c.presence_poll_s)
+
+    @staticmethod
+    def _ping(ip):
+        try:
+            r = subprocess.run(["ping", "-c", "2", "-W", "1500", "-q", ip],
+                               capture_output=True, timeout=8)
+            return r.returncode == 0
+        except Exception:  # noqa: BLE001
+            return False
+
+    def _clear_manual_hold(self):
+        try:
+            os.unlink(self.c.manual_hold)
+        except FileNotFoundError:
+            pass
 
     def _handle_control(self, text):
         body, _, tok = text.strip().partition(":")
@@ -630,6 +679,7 @@ class Daemon:
             threading.Thread(target=self._health_watch, name="health"),
             threading.Thread(target=self._profile_watch, name="profile"),
             threading.Thread(target=self._control_watch, name="control"),
+            threading.Thread(target=self._presence_watch, name="presence"),
             threading.Thread(target=self._pending_flush, name="flush"),
             threading.Thread(target=self._maintenance, name="maint"),
             threading.Thread(target=self._heartbeat, name="heartbeat"),

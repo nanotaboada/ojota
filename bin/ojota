@@ -40,14 +40,17 @@ daemon_pid()  { pgrep -f "$DAEMON" | head -1; }
 need_root()   { is_root || exec sudo "$SELF" "$@"; }
 
 # ── estado armado / desarmado ─────────────────────────────────────────
+HOLD_FILE="$HERE/config/manual-hold"
 set_state() {
     echo "$1" >"$PROFILE_FILE"
     if [ "$1" = desarmado ]; then
+        rm -f "$HOLD_FILE"
         echo "⚪ DESARMADO: no graba, no sube, no notifica"
         echo "   (siguen los chequeos de salud: cámara caída, heartbeat)"
     else
+        touch "$HOLD_FILE"   # que la presencia no lo desarme solo
         echo "🔴 ARMADO: graba, sube a Drive y notifica"
-        echo "   (~15s de warm-up y queda activo)"
+        echo "   (~15s de warm-up; queda armado hasta que hagas 'ojota volver')"
     fi
 }
 
@@ -61,6 +64,10 @@ cmd_status() {
         desarmado|casa) echo "   estado:   ⚪ DESARMADO (no graba)" ;;
         *)              echo "   estado:   🔴 ARMADO" ;;
     esac
+    [ -f "$HOLD_FILE" ] && echo "             (armado a mano — la presencia no lo desarma)"
+    local pres
+    pres="$(grep -hE "presencia:" "$LOG" 2>/dev/null | tail -1)"
+    [ -n "$pres" ] && echo "   presencia: ${pres##* INFO presencia: }"
     if [ -n "$pid" ]; then
         echo "   daemon:   ✅ corriendo (pid $pid)"
     else

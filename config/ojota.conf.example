@@ -55,16 +55,23 @@ CAMERA_DOWN_ALERT_MINUTES=5 # alerta (prioridad alta) si la cámara no
 EVENT_BURST_COUNT=10        # si hay ≥ N eventos en EVENT_BURST_MINUTES,
 EVENT_BURST_MINUTES=15      # manda una alerta "muchos eventos" (algo raro)
 
-# ── Auto-armado desde el celu (opcional) ─────────────────────────────
+# ── Auto-armado por presencia del celu en la WiFi ────────────────────
+# El daemon pinguea al celu. Si no responde por PRESENCE_AWAY_MINUTES →
+# armado; cuando vuelve a responder → desarmado (instantáneo). Reservá la
+# IP del celu en el router. Vacío = desactivado.
+PHONE_IP=""
+PRESENCE_POLL_SECONDS=25
+PRESENCE_AWAY_MINUTES=2    # sin ver el celu N min → armar
+
+# ── Auto-armado por geofence (opcional, además de la presencia) ──────
 # El daemon escucha un 2do topic de ntfy. El celu (geofence en Automate /
 # Tasker) postea "salir:TOKEN" o "volver:TOKEN". Vacío = desactivado.
 #   echo "ojota-control-$(openssl rand -hex 16)"   # topic
 #   openssl rand -hex 16                            # token
 NTFY_CONTROL_TOPIC=""
 CONTROL_TOKEN=""           # sin token, cualquiera con el topic te arma/desarma
-ARM_DELAY_MINUTES=2        # al "salir", esperar N min antes de armar
-                          # (evita flapping si volvés enseguida). "volver"
-                          # es instantáneo.
+ARM_DELAY_MINUTES=2        # al "salir" por geofence, esperar N min antes de
+                          # armar. "volver" es instantáneo.
 CONTROL_POLL_SECONDS=20    # cada cuánto consulta el topic de control
 
 # ── Google Drive (rclone) ─────────────────────────────────────────────

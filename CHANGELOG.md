@@ -17,10 +17,13 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
     + detección + subida + notificaciones; desarmado = frena los dos
     ffmpeg, solo siguen los chequeos de salud. Comandos `ojota salir` /
     `ojota volver` (alias `armar` / `desarmar`).
-  - **Auto-armado**: el daemon escucha un 2do topic de ntfy
-    (`NTFY_CONTROL_TOPIC`) validado con `CONTROL_TOKEN`. Una automatización
-    de geofence en el celular postea `salir:TOKEN` / `volver:TOKEN`.
-    `volver` desarma al instante; `salir` arma tras `ARM_DELAY_MINUTES`.
+  - **Auto-armado por presencia**: el daemon pinguea `PHONE_IP`; sin
+    respuesta por `PRESENCE_AWAY_MINUTES` → armado, al volver → desarmado.
+    `ojota salir` a mano deja `config/manual-hold` para que la presencia
+    no lo desarme. Cero apps en el celular.
+  - **Auto-armado por geofence** (opcional): el daemon escucha un 2do
+    topic de ntfy (`NTFY_CONTROL_TOPIC`) validado con `CONTROL_TOKEN`;
+    un cliente HTTP en el celu postea `salir:TOKEN` / `volver:TOKEN`.
   - Supervisión de subprocesos con backoff exponencial y alerta de
     cámara caída.
   - Log rotativo; credenciales redactadas en el log.
