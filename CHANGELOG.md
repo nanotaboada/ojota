@@ -66,6 +66,19 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
   `docs/logo.svg`.
 - Entorno Python aislado (`requirements.txt`: numpy).
 
+### Fixed
+
+- Ventana de "volviste": el timestamp se escribía con decimales y la
+  comparación entera del hook fallaba en silencio, así que los clips de
+  tu llegada iban igual a la raíz y con aviso. Ahora se escribe entero.
+- `_on_return`: el `rclone move` a `probablemente-vos/` fallaba siempre
+  ("overlapping remotes"). Se pasó a reglas `--filter` excluyendo el
+  subdirectorio destino.
+- El aviso instantáneo ("Movimiento en curso") ahora se difiere
+  `INSTANT_NOTIFY_DELAY_SECONDS` (45 s) y se cancela si en ese lapso la
+  presencia te reconoce — cubre la latencia de reconexión del celu al
+  WiFi al entrar, que hacía llegar 2 avisos de tu propia llegada.
+
 ### Estado
 
 Etapas 1–6 completas. Ideas para más adelante: auto-armado por presencia

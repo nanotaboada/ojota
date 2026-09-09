@@ -82,6 +82,8 @@ class Conf:
         self.buffer_s = int(d.get("BUFFER_RETENTION_SECONDS", 60))
         self.cam_down_min = float(d.get("CAMERA_DOWN_ALERT_MINUTES", 5))
         self.notify_silence_min = float(d.get("NOTIFY_SILENCE_MINUTES", 5))
+        self.instant_notify_delay_s = float(
+            d.get("INSTANT_NOTIFY_DELAY_SECONDS", 45))
         self.live_upload = d.get("LIVE_UPLOAD", "1") == "1"
         self.pending_retry_min = float(d.get("PENDING_RETRY_MINUTES", 3))
         self.retention_check_h = float(d.get("RETENTION_CHECK_HOURS", 24))
@@ -140,6 +142,7 @@ class Daemon:
         self.event_times = []
         self.last_burst_alert = 0.0
         self.last_instant_notify = 0.0
+        self.instant_timer = None
         # estado armado / desarmado
         self.profile = None
         self.active_roi = conf.roi
@@ -252,7 +255,7 @@ class Daemon:
         recent = time.time() - self.event_start < grace
         try:
             with open(self.c.return_window, "w") as fh:
-                fh.write(str(time.time() + grace) + "\n")
+                fh.write("%d\n" % (time.time() + grace))
         except OSError:
             pass
         if not recent:
@@ -261,8 +264,10 @@ class Daemon:
         try:
             r = subprocess.run(
                 ["rclone", "move", dest, dest + "/probablemente-vos",
-                 "--include", "*.mp4", "--max-age", "%ds" % (grace + 60),
-                 "--max-depth", "1", "--no-traverse", "-q"],
+                 "--filter", "- probablemente-vos/**",
+                 "--filter", "+ *.mp4", "--filter", "- *",
+                 "--max-age", "%ds" % (grace + 60),
+                 "--no-traverse", "-q"],
                 env=dict(os.environ), capture_output=True, text=True,
                 timeout=120)
             err = "" if r.returncode == 0 else r.stderr.strip()[:120]
@@ -449,6 +454,24 @@ class Daemon:
         if ts - self.last_instant_notify < self.c.notify_silence_min * 60:
             return
         self.last_instant_notify = ts
+        # diferido: si en los próximos segundos la presencia te reconoce
+        # (volviste → desarmado / ventana de vuelta), se cancela: casi
+        # seguro eras vos entrando y el celu tardó en reconectar al WiFi.
+        delay = self.c.instant_notify_delay_s
+        if delay <= 0:
+            self._fire_instant_notify(ts)
+            return
+        self.instant_timer = threading.Timer(
+            delay, self._fire_instant_notify, args=(ts,))
+        self.instant_timer.daemon = True
+        self.instant_timer.start()
+
+    def _fire_instant_notify(self, ts):
+        if self.stop.is_set() or not self.notify_enabled:
+            return
+        if self._in_return_window():
+            self.log.info("aviso instantáneo cancelado (volviste)")
+            return
         hora = datetime.fromtimestamp(ts).strftime("%H:%M")
         self._notify(4, "eyes,rotating_light", "🩴 Movimiento · " + hora,
                      "Detección en curso — el video se está subiendo a Drive.")

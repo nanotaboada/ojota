@@ -54,6 +54,11 @@ NTFY_TOPIC="ojota-CAMBIAR-POR-UNO-ALEATORIO"
 NOTIFY_SILENCE_MINUTES=5    # tras avisar, no volver a avisar por N min.
                            # SOLO afecta las notificaciones: el video se
                            # graba y sube igual.
+INSTANT_NOTIFY_DELAY_SECONDS=45  # el aviso instantáneo ("Movimiento en
+                           # curso") se difiere N s: si en ese lapso la
+                           # presencia te reconoce (volviste), se cancela.
+                           # Cubre la latencia de reconexión del celu al
+                           # WiFi al entrar. 0 = avisar en el acto.
 CAMERA_DOWN_ALERT_MINUTES=5 # alerta (prioridad alta) si la cámara no
                            # responde por N min
 EVENT_BURST_COUNT=10        # si hay ≥ N eventos en EVENT_BURST_MINUTES,
