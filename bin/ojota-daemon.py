@@ -277,8 +277,9 @@ class Daemon:
             self.log.warning("volviste: no pude archivar en Drive: %s", err)
         else:
             self.log.info("volviste: clips recientes → probablemente-vos/")
-        self._notify(2, "house", "🩴 Volviste",
-                     "Archivé en 'probablemente-vos' el clip de tu llegada.")
+        self._notify(1, "house", "🩴 En casa",
+                     "Llegaste, ojota se desarmó solo. Guardó el video "
+                     "de tu entrada por las dudas.")
 
     # ── ffmpeg: segmentador (copia, sin re-encodear) ──────────────────
     def run_segmenter(self):
@@ -386,8 +387,8 @@ class Daemon:
                 self.log.info("cámara: stream recuperado")
                 self.cam_down_notified = False
                 self._notify(3, "white_check_mark,camera",
-                             "🩴 ojota — cámara recuperada",
-                             "La cámara volvió a responder.")
+                             "🩴 Cámara reconectada",
+                             "Volvió a andar. Todo normal.")
             frame = np.frombuffer(buf, np.uint8).reshape(h, w)
             l, t, r, b = self.active_roi
             cur = frame[int(t * h):int(b * h),
@@ -473,8 +474,8 @@ class Daemon:
             self.log.info("aviso instantáneo cancelado (volviste)")
             return
         hora = datetime.fromtimestamp(ts).strftime("%H:%M")
-        self._notify(4, "eyes,rotating_light", "🩴 Movimiento · " + hora,
-                     "Detección en curso — el video se está subiendo a Drive.")
+        self._notify(4, "eyes,rotating_light", "🩴 Movimiento en casa",
+                     "Algo se movió a las %s. Guardando el video…" % hora)
 
     def _check_burst(self, ts):
         if self._in_return_window():
@@ -487,9 +488,9 @@ class Daemon:
                 and ts - self.last_burst_alert > self.c.burst_min * 60):
             self.last_burst_alert = ts
             self.log.warning("BURST: %d eventos en %g min", n, self.c.burst_min)
-            self._notify(5, "warning,eyes", "🩴 ojota — muchos eventos",
-                         "%d eventos de movimiento en %g min. "
-                         "Algo raro está pasando." % (n, self.c.burst_min))
+            self._notify(5, "warning,eyes", "🩴 Actividad inusual",
+                         "%d alertas de movimiento en %g minutos. "
+                         "Revisá los videos." % (n, self.c.burst_min))
 
     def _event_finalizer(self):
         while not self.stop.is_set():
@@ -713,9 +714,10 @@ class Daemon:
                 self.log.error(
                     "ALERTA: sin frames de la cámara hace %.0f min", gap / 60)
                 self._notify(5, "rotating_light,camera",
-                             "🩴 ojota — cámara sin señal",
-                             "Sin frames de la cámara hace %.0f min. "
-                             "¿Se cayó el sistema?" % (gap / 60))
+                             "🩴 Cámara sin señal",
+                             "Dejó de responder hace %.0f min. Puede ser "
+                             "un corte de luz o de internet en casa."
+                             % (gap / 60))
 
     # ── arranque ───────────────────────────────────────────────────
     def start(self):

@@ -164,6 +164,7 @@ Todo en `config/ojota.conf` (formato `KEY=VALUE`, lo leen bash y Python).
 | `DEFAULT_PROFILE` | `armado` | Estado al bootear si no hay config/profile |
 | `NTFY_TOPIC` | — | Topic de ntfy.sh (secreto, generar aleatorio) |
 | `NOTIFY_SILENCE_MINUTES` | 5 | Ventana anti-spam de notificaciones |
+| `INSTANT_NOTIFY_DELAY_SECONDS` | 45 | El aviso instantáneo se difiere N s; se cancela si volvés en ese lapso |
 | `CAMERA_DOWN_ALERT_MINUTES` | 5 | Alerta si la cámara no responde por N min |
 | `EVENT_BURST_COUNT` / `EVENT_BURST_MINUTES` | 10 / 15 | Alerta "muchos eventos" si se acumulan |
 | `RCLONE_REMOTE` / `RCLONE_PATH` | `gdrive` / `ojota` | Destino en Drive |

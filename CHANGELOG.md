@@ -66,6 +66,17 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
   `docs/logo.svg`.
 - Entorno Python aislado (`requirements.txt`: numpy).
 
+### Changed
+
+- Mensajes al usuario reescritos en lenguaje llano (sin jerga de
+  proceso: "frames", "ring buffer", "detección en curso", nombres de
+  carpetas internas). Pensados para reutilizarse en una app propia.
+- `ojota status`: salida reformateada al estilo de los scripts de
+  mantenimiento (etiquetas alineadas en gris, valores en color, tiempos
+  relativos "hoy 14:29", frases en vez de líneas de log crudas). Estado
+  como `● armado` / `○ desarmado`. Presencia por ping en vivo al celu.
+- El aviso "En casa" (volviste, auto-desarmado) pasa a prioridad mínima.
+
 ### Fixed
 
 - Ventana de "volviste": el timestamp se escribía con decimales y la

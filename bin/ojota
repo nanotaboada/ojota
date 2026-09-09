@@ -27,12 +27,39 @@ DAEMON="$HERE/bin/ojota-daemon.py"
 LABEL="com.nanotaboada.ojota"
 PLIST_SYSTEM="/Library/LaunchDaemons/${LABEL}.plist"
 PLIST_TEMPLATE="$HERE/deploy/${LABEL}.plist"
-: "${DEFAULT_PROFILE:=afuera}"
+: "${DEFAULT_PROFILE:=armado}"
 : "${RCLONE_REMOTE:=gdrive}"
 : "${RCLONE_PATH:=ojota}"
 : "${RETENTION_DAYS:=30}"
 : "${CONFIG_BACKUP:=1}"
 DEST="${RCLONE_REMOTE}:${RCLONE_PATH}"
+
+# ── estilo de salida ─────────────────────────────────────────────────
+if [ -t 1 ]; then
+    _R=$'\033[0m'; _GREY=$'\033[0;37m'; _CYAN=$'\033[0;36m'
+    _GREEN=$'\033[0;32m'; _RED=$'\033[0;31m'; _YEL=$'\033[1;33m'
+else
+    _R='' _GREY='' _CYAN='' _GREEN='' _RED='' _YEL=''
+fi
+row()      { printf '  %s%-13s%s %s\n' "$_GREY" "$1" "$_R" "$2"; }
+section()  { printf '\n  %s%s%s\n' "$_GREY" "$1" "$_R"; }
+msg_ok()   { printf '  %s✓%s %s\n' "$_GREEN" "$_R" "$1"; }
+msg_warn() { printf '  %s!%s %s\n' "$_YEL" "$_R" "$1"; }
+msg_err()  { printf '  %s✗%s %s\n' "$_RED" "$_R" "$1" >&2; }
+dim()      { printf '%s%s%s' "$_GREY" "$1" "$_R"; }
+
+# "2026-09-09 14:29:02" -> "hoy 14:29" / "ayer 14:29" / "08/09 14:29"
+reltime() {
+    local ts="$1"
+    [ -n "$ts" ] || { echo "—"; return; }
+    if [ "${ts%% *}" = "$(date +%Y-%m-%d)" ]; then
+        echo "hoy ${ts:11:5}"
+    elif [ "${ts%% *}" = "$(date -v-1d +%Y-%m-%d 2>/dev/null)" ]; then
+        echo "ayer ${ts:11:5}"
+    else
+        echo "${ts:8:2}/${ts:5:2} ${ts:11:5}"
+    fi
+}
 
 installed()   { [ -f "$PLIST_SYSTEM" ]; }
 is_root()     { [ "$(id -u)" = 0 ]; }
@@ -45,74 +72,142 @@ set_state() {
     echo "$1" >"$PROFILE_FILE"
     if [ "$1" = desarmado ]; then
         rm -f "$HOLD_FILE"
-        echo "⚪ DESARMADO: no graba, no sube, no notifica"
-        echo "   (siguen los chequeos de salud: cámara caída, heartbeat)"
+        printf '  %s○%s desarmado  %sno graba · solo chequeos de salud%s\n' \
+            "$_GREY" "$_R" "$_GREY" "$_R"
     else
         touch "$HOLD_FILE"   # que la presencia no lo desarme solo
-        echo "🔴 ARMADO: graba, sube a Drive y notifica"
-        echo "   (~15s de warm-up; queda armado hasta que hagas 'ojota volver')"
+        printf '  %s●%s armado  %sgraba, sube y avisa · queda así hasta '\''ojota volver'\''%s\n' \
+            "$_GREEN" "$_R" "$_GREY" "$_R"
     fi
 }
 
 # ── estado ─────────────────────────────────────────────────────────────
+fmt_event() {
+    local line="$1" t rest
+    t="$(reltime "${line:0:19}")"
+    rest="${line#*INFO }"
+    if [ "${rest#MOVIMIENTO}" != "$rest" ]; then
+        local pct="${rest#*\(}"; pct="${pct%%% de cambio*}"
+        rest="movimiento · ${pct}%"
+    elif [ "${rest#clip armado:}" != "$rest" ]; then
+        local dur="${rest##*~}"; dur="${dur%)*}"
+        rest="video guardado · ${dur}"
+    fi
+    printf '    %s%-11s%s %s\n' "$_GREY" "$t" "$_R" "$rest"
+}
+
 cmd_status() {
     local pid cur segs pend
     pid="$(daemon_pid)"
     cur="$(cat "$PROFILE_FILE" 2>/dev/null || echo "$DEFAULT_PROFILE")"
-    echo "🩴 ojota"
+
+    printf '\n  🩴 ojota  %s· vigilancia de la puerta%s\n\n' "$_GREY" "$_R"
+
+    # estado
     case "$cur" in
-        desarmado|casa) echo "   estado:   ⚪ DESARMADO (no graba)" ;;
-        *)              echo "   estado:   🔴 ARMADO" ;;
+        desarmado|casa)
+            row "estado" "$(printf '%s○ desarmado%s  %sno graba · solo chequeos de salud%s' \
+                "$_GREY" "$_R" "$_GREY" "$_R")" ;;
+        *)
+            local nota="se desarma solo cuando volvés"
+            [ -f "$HOLD_FILE" ] && nota="a mano · queda así hasta 'ojota volver'"
+            row "estado" "$(printf '%s● armado%s  %s%s%s' \
+                "$_GREEN" "$_R" "$_GREY" "$nota" "$_R")" ;;
     esac
-    [ -f "$HOLD_FILE" ] && echo "             (armado a mano — la presencia no lo desarma)"
-    local pres
-    pres="$(grep -hE "presencia:" "$LOG" 2>/dev/null | tail -1)"
-    [ -n "$pres" ] && echo "   presencia: ${pres##* INFO presencia: }"
+
+    # presencia (ping en vivo al celu)
+    if [ -n "${PHONE_IP:-}" ]; then
+        if ping -c1 -W1000 "$PHONE_IP" >/dev/null 2>&1; then
+            row "presencia" "celu en casa"
+        else
+            row "presencia" "celu fuera de la red"
+        fi
+    else
+        row "presencia" "$(dim 'desactivada')"
+    fi
+
+    # daemon
     if [ -n "$pid" ]; then
-        echo "   daemon:   ✅ corriendo (pid $pid)"
+        row "daemon" "$(printf '%s● corriendo%s  %spid %s%s' "$_GREEN" "$_R" "$_GREY" "$pid" "$_R")"
     else
-        echo "   daemon:   🔴 detenido"
+        row "daemon" "$(printf '%s○ detenido%s' "$_RED" "$_R")"
     fi
+
+    # servicio
     if installed; then
-        echo "   servicio: 📌 instalado (LaunchDaemon, arranca al bootear)"
+        row "servicio" "$(printf 'instalado  %sarranca al bootear%s' "$_GREY" "$_R")"
     else
-        echo "   servicio: ⚙️  no instalado (corrida manual — ver 'ojota install')"
+        row "servicio" "$(printf 'no instalado  %sver '\''ojota install'\''%s' "$_GREY" "$_R")"
     fi
+
+    # cola
     segs="$(ls "$HERE/clips/buffer/"*.ts 2>/dev/null | wc -l | tr -d ' ')"
     pend="$(ls "$HERE/clips/pending/"*.mp4 2>/dev/null | wc -l | tr -d ' ')"
-    [ "${pend:-0}" -gt 0 ] && pend="⚠️  ${pend}"
-    echo "   buffer:   ${segs} segmentos  ·  pendientes de subir: ${pend}"
+    if [ "${pend:-0}" -gt 0 ]; then
+        row "cola" "$(printf '%s en buffer · %s%s sin subir%s' "$segs" "$_YEL" "$pend" "$_R")"
+    else
+        row "cola" "$(printf '%s en buffer · 0 sin subir' "$segs")"
+    fi
 
-    echo
-    echo "últimos eventos:"
-    local ev
-    ev="$(grep -hE "MOVIMIENTO|clip armado|ALERTA|cámara recuperada" "$LOG" 2>/dev/null | tail -5)"
-    [ -n "$ev" ] && echo "$ev" | sed 's/^/  /' || echo "  (sin eventos)"
+    # últimos movimientos
+    section "últimos movimientos"
+    local mv
+    mv="$(grep -hE "MOVIMIENTO detectado|clip armado:" "$LOG" 2>/dev/null | tail -6)"
+    if [ -z "$mv" ]; then
+        printf '    %ssin movimientos registrados%s\n' "$_GREY" "$_R"
+    else
+        while IFS= read -r line; do fmt_event "$line"; done <<<"$mv"
+    fi
 
-    echo
-    # errores desde que arrancó el daemon actual (por timestamp)
+    # errores desde que arrancó el daemon actual
+    section "errores"
     local ts er
     ts="$(grep -h "ojota daemon arriba" "$LOG" 2>/dev/null | tail -1 | cut -c1-19)"
     er="$(cat "$LOG" "$HOOK_LOG" 2>/dev/null \
           | { [ -n "$ts" ] && awk -v t="$ts" 'substr($0,1,19) >= t' || cat; } \
           | grep -E " ERROR | FALLÓ|falló" | tail -5)"
-    if [ -n "$er" ]; then
-        echo "⚠️  errores (corrida actual):"; echo "$er" | sed 's/^/  /'
+    if [ -z "$er" ]; then
+        printf '    %sninguno desde que arrancó (%s)%s\n' "$_GREY" "$(reltime "$ts")" "$_R"
     else
-        echo "errores: ✅ ninguno en la corrida actual"
+        while IFS= read -r l; do
+            printf '    %s%-11s%s %s%s%s\n' "$_GREY" "$(reltime "${l:0:19}")" "$_R" \
+                "$_RED" "$(sed -E 's/^.{20}[A-Z]+ //' <<<"$l")" "$_R"
+        done <<<"$er"
     fi
 
-    echo
+    # Drive
+    section "Drive"
     if command -v rclone >/dev/null; then
-        local n
-        n="$(rclone lsf "$DEST/" --include '*.mp4' --files-only 2>/dev/null | wc -l | tr -d ' ')"
-        echo "☁️  Drive:    ${n} clips en $DEST/  (retención ${RETENTION_DAYS}d)"
-        rclone about "${RCLONE_REMOTE}:" 2>/dev/null \
-            | grep -E "^(Used|Free):" | sed 's/^/          /'
+        local nr npv ab used free
+        nr="$(rclone lsf "$DEST/" --include '*.mp4' --files-only 2>/dev/null | wc -l | tr -d ' ')"
+        npv="$(rclone lsf "$DEST/probablemente-vos/" --include '*.mp4' --files-only 2>/dev/null | wc -l | tr -d ' ')"
+        if [ "${npv:-0}" -gt 0 ]; then
+            printf '    %s videos · %s de tu llegada · retención %s días\n' "$nr" "$npv" "$RETENTION_DAYS"
+        else
+            printf '    %s videos · retención %s días\n' "$nr" "$RETENTION_DAYS"
+        fi
+        ab="$(rclone about "${RCLONE_REMOTE}:" 2>/dev/null)"
+        used="$(awk -F': +' '/^Used:/{print $2}' <<<"$ab")"
+        free="$(awk -F': +' '/^Free:/{print $2}' <<<"$ab")"
+        [ -n "$used" ] && printf '    %s%s usados · %s libres%s\n' "$_GREY" "$used" "$free" "$_R"
+    else
+        printf '    %srclone no está instalado%s\n' "$_GREY" "$_R"
     fi
+
+    # mantenimiento
     local mnt
-    mnt="$(grep -hE "prune:|backup-config:|heartbeat" "$LOG" 2>/dev/null | tail -1)"
-    [ -n "$mnt" ] && echo "   mant.:    ${mnt##* INFO }"
+    mnt="$(grep -hE "prune:|backup-config:|heartbeat:" "$LOG" 2>/dev/null | tail -1)"
+    if [ -n "$mnt" ]; then
+        section "mantenimiento"
+        local mr="${mnt#*INFO }"
+        case "$mr" in
+            *backup-config*) mr="respaldo de config" ;;
+            *prune*)         mr="limpieza de Drive" ;;
+            *heartbeat*)     mr="heartbeat" ;;
+        esac
+        printf '    %s%-11s%s %s\n' "$_GREY" "$(reltime "${mnt:0:19}")" "$_R" "$mr"
+    fi
+    echo
 }
 
 # ── start / stop / restart ────────────────────────────────────────────
@@ -123,12 +218,12 @@ cmd_start() {
             || launchctl kickstart "system/$LABEL" 2>/dev/null
         sleep 2; svc_report
     else
-        [ -n "$(daemon_pid)" ] && { echo "ya está corriendo (pid $(daemon_pid))"; return; }
-        [ -x "$PY" ] || { echo "falta el venv ($PY). Ver README, paso 2." >&2; exit 1; }
+        [ -n "$(daemon_pid)" ] && { msg_ok "ya estaba corriendo (pid $(daemon_pid))"; return; }
+        [ -x "$PY" ] || { msg_err "falta el entorno de Python ($PY) — ver README, paso 2"; exit 1; }
         nohup "$PY" "$DAEMON" >/dev/null 2>&1 &
         sleep 2
-        [ -n "$(daemon_pid)" ] && echo "🩴 daemon arrancado (pid $(daemon_pid))" \
-            || { echo "🔴 no arrancó, mirá $LOG" >&2; exit 1; }
+        [ -n "$(daemon_pid)" ] && msg_ok "arrancado (pid $(daemon_pid))" \
+            || { msg_err "no arrancó — mirá $LOG"; exit 1; }
     fi
 }
 
@@ -137,14 +232,14 @@ cmd_stop() {
         need_root stop
         launchctl kill SIGTERM "system/$LABEL" 2>/dev/null
         for _ in $(seq 1 20); do sleep 0.5; [ -z "$(daemon_pid)" ] && break; done
-        [ -z "$(daemon_pid)" ] && echo "🛑 detenido (el servicio sigue instalado)" \
-            || echo "⚠️  no frenó — probá 'ojota restart'"
+        [ -z "$(daemon_pid)" ] && msg_ok "detenido (el servicio sigue instalado)" \
+            || msg_warn "no frenó — probá 'ojota restart'"
     else
         local pid; pid="$(daemon_pid)"
-        [ -z "$pid" ] && { echo "no estaba corriendo"; return; }
+        [ -z "$pid" ] && { msg_ok "no estaba corriendo"; return; }
         kill -TERM "$pid"
         for _ in $(seq 1 20); do sleep 0.5; [ -z "$(daemon_pid)" ] && break; done
-        [ -z "$(daemon_pid)" ] && echo "🛑 detenido" || { kill -9 "$pid"; echo "🛑 forzado"; }
+        [ -z "$(daemon_pid)" ] && msg_ok "detenido" || { kill -9 "$pid"; msg_warn "detenido a la fuerza"; }
     fi
 }
 
@@ -165,27 +260,27 @@ cmd_restart() {
 
 svc_report() {
     if [ -n "$(daemon_pid)" ]; then
-        echo "🩴 servicio corriendo (pid $(daemon_pid))"
+        msg_ok "servicio corriendo (pid $(daemon_pid))"
     else
-        echo "🔴 el servicio no levantó — mirá $HERE/logs/launchd.err.log" >&2
+        msg_err "el servicio no levantó — mirá $HERE/logs/launchd.err.log"
     fi
 }
 
 # ── mantenimiento ────────────────────────────────────────────────────
 cmd_prune() {
-    command -v rclone >/dev/null || { echo "falta rclone" >&2; exit 1; }
+    command -v rclone >/dev/null || { msg_err "rclone no está instalado"; exit 1; }
     local before after
-    before="$(rclone lsf "$DEST/" --include '*.mp4' --files-only 2>/dev/null | wc -l | tr -d ' ')"
+    before="$(rclone lsf "$DEST/" --include '*.mp4' 2>/dev/null | wc -l | tr -d ' ')"
     rclone delete "$DEST/" --min-age "${RETENTION_DAYS}d" --include '*.mp4' \
         --drive-use-trash=false 2>&1 | grep -vE '^\s*$' | sed 's/^/  /'
     rclone rmdirs "$DEST/" --leave-root 2>/dev/null
-    after="$(rclone lsf "$DEST/" --include '*.mp4' --files-only 2>/dev/null | wc -l | tr -d ' ')"
-    echo "🧹 retención (>${RETENTION_DAYS}d): $((before - after)) borrados, quedan ${after}"
+    after="$(rclone lsf "$DEST/" --include '*.mp4' 2>/dev/null | wc -l | tr -d ' ')"
+    msg_ok "limpieza: borré $((before - after)) videos de más de ${RETENTION_DAYS} días · quedan ${after}"
 }
 
 cmd_backup_config() {
-    [ "$CONFIG_BACKUP" = 1 ] || { echo "CONFIG_BACKUP=0, no hago nada"; return; }
-    command -v rclone >/dev/null || { echo "falta rclone" >&2; exit 1; }
+    [ "$CONFIG_BACKUP" = 1 ] || { msg_ok "respaldo de config desactivado (CONFIG_BACKUP=0)"; return; }
+    command -v rclone >/dev/null || { msg_err "rclone no está instalado"; exit 1; }
     local tmp done; tmp="$(mktemp -d)"; done=""
     [ -r "$HERE/config/ojota.conf" ] && { cp "$HERE/config/ojota.conf" "$tmp/"; done="$done ojota.conf"; }
     [ -r "$HERE/config/profile" ]    && { cp "$HERE/config/profile" "$tmp/"; done="$done profile"; }
@@ -197,13 +292,13 @@ cmd_backup_config() {
     fi
     rclone copy "$tmp/" "$DEST/config-backup/" 2>&1 | grep -vE '^\s*$' | sed 's/^/  /'
     rm -rf "$tmp"
-    echo "💾 respaldado en $DEST/config-backup/ →$done  (secretos — carpeta privada)"
+    msg_ok "config respaldada en Drive:$done  (carpeta privada — tiene secretos)"
 }
 
 # ── install / uninstall ──────────────────────────────────────────────
 cmd_install() {
     need_root install
-    [ -f "$PLIST_TEMPLATE" ] || { echo "falta $PLIST_TEMPLATE" >&2; exit 1; }
+    [ -f "$PLIST_TEMPLATE" ] || { msg_err "falta la plantilla $PLIST_TEMPLATE"; exit 1; }
     local user home src_rclone
     user="${SUDO_USER:-$(id -un)}"
     home="$(dscl . -read "/Users/$user" NFSHomeDirectory 2>/dev/null | awk '{print $2}')"
@@ -216,9 +311,9 @@ cmd_install() {
         cp "$src_rclone" "$HERE/config/rclone.conf"
         chown root:wheel "$HERE/config/rclone.conf"
         chmod 600 "$HERE/config/rclone.conf"
-        echo "(copié la config de rclone a config/rclone.conf)"
+        msg_ok "copié la config de rclone para el servicio"
     else
-        echo "⚠️  no encontré $src_rclone — configurá rclone primero (README)" >&2
+        msg_warn "no encontré $src_rclone — configurá rclone primero (README)"
     fi
 
     sed -e "s|__OJOTA_DIR__|$HERE|g" \
@@ -228,30 +323,31 @@ cmd_install() {
     chmod 644 "$PLIST_SYSTEM"
 
     # matar cualquier corrida manual previa
-    pkill -f "$DAEMON" 2>/dev/null && { echo "(frené el daemon manual)"; sleep 2; }
+    pkill -f "$DAEMON" 2>/dev/null && { msg_ok "frené la corrida manual previa"; sleep 2; }
 
     launchctl bootout "system/$LABEL" 2>/dev/null
     if launchctl bootstrap system "$PLIST_SYSTEM"; then
         sleep 2
-        echo "📌 instalado y arrancado (LaunchDaemon, como root)."
+        msg_ok "servicio instalado y arrancado (arranca al bootear)"
         svc_report
     else
-        echo "⚠️  el plist se copió pero bootstrap falló. Revisá con:" >&2
+        msg_err "el plist se copió pero bootstrap falló — revisá con:"
         echo "    sudo launchctl bootstrap system $PLIST_SYSTEM" >&2
         exit 1
     fi
     echo
-    echo "Para que la Mac no se duerma y el servicio siga 24/7:"
+    printf '  %spara que la Mac no se duerma y el servicio siga 24/7:%s\n' "$_GREY" "$_R"
     echo "    sudo pmset -a sleep 0 disablesleep 1"
 }
 
 cmd_uninstall() {
     need_root uninstall
-    installed || { echo "no estaba instalado"; return; }
+    installed || { msg_ok "no estaba instalado"; return; }
     launchctl bootout "system/$LABEL" 2>/dev/null
     rm -f "$PLIST_SYSTEM" "$HERE/config/rclone.conf"
-    echo "🗑  servicio quitado. El daemon ya no arranca al bootear."
-    echo "   (para volver: 'ojota install'. Revertir pmset: sudo pmset -a disablesleep 0)"
+    msg_ok "servicio quitado — ya no arranca al bootear"
+    printf '  %spara volver: '\''ojota install'\''  ·  revertir pmset: sudo pmset -a disablesleep 0%s\n' \
+        "$_GREY" "$_R"
 }
 
 # ── dispatch ─────────────────────────────────────────────────────────
@@ -267,13 +363,14 @@ case "${1:-}" in
     logs)          tail -n "${2:-40}" "$LOG" ;;
     prune)         cmd_prune ;;
     backup-config) cmd_backup_config ;;
-    test-notify)   "$HERE/bin/ojota-notify.sh" 3 "eyes" "🩴 ojota — prueba" \
-                       "Si ves esto, ntfy anda ($(date '+%H:%M'))" \
-                       && echo "📨 enviada" ;;
+    test-notify)   "$HERE/bin/ojota-notify.sh" 3 "eyes" "🩴 Prueba" \
+                       "Las notificaciones andan. $(date '+%H:%M')." \
+                       && msg_ok "notificación de prueba enviada" \
+                       || msg_err "no se pudo enviar — revisá NTFY_TOPIC" ;;
     ""|-h|--help|help)
         sed -n '2,12p' "$SELF" | sed 's/^# \{0,1\}//' ;;
     *)
-        echo "comando desconocido: $1" >&2
+        msg_err "comando desconocido: $1"
         sed -n '2,12p' "$SELF" | sed 's/^# \{0,1\}//' >&2
         exit 1 ;;
 esac
