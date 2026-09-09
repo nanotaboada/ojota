@@ -73,9 +73,15 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
   carpetas internas). Pensados para reutilizarse en una app propia.
 - `ojota status`: salida reformateada al estilo de los scripts de
   mantenimiento (etiquetas alineadas en gris, valores en color, tiempos
-  relativos "hoy 14:29", frases en vez de líneas de log crudas). Estado
-  como `● armado` / `○ desarmado`. Presencia por ping en vivo al celu.
-- El aviso "En casa" (volviste, auto-desarmado) pasa a prioridad mínima.
+  relativos "hoy 14:29", frases en vez de líneas de log crudas).
+  Presencia por ping en vivo al celu.
+- El aviso de la llegada (auto-pausa) pasa a prioridad mínima.
+- Segunda pasada de tono: `Ojota` con mayúscula (nombre propio, se va la
+  duda de género), `vigilando` / `en pausa` en vez de `armado` /
+  `desarmado` en los textos, tono según contexto (alegre en la llegada,
+  "Ojo" en movimiento, preocupación en las alertas serias). Los comandos
+  (`salir` / `volver` / `armar` / `desarmar`) y los valores internos de
+  `config/profile` no cambian.
 
 ### Fixed
 

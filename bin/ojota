@@ -1,8 +1,8 @@
 #!/bin/bash
 # ojota — control del sistema
 #
-#   ojota salir | armar          armar: graba, sube y notifica
-#   ojota volver | desarmar      desarmar: pausa total (solo chequeos de salud)
+#   ojota salir | armar          Ojota vigila: graba, sube y avisa
+#   ojota volver | desarmar      Ojota en pausa: solo chequeos de salud
 #   ojota status                 estado general
 #   ojota start | stop | restart arrancar / parar / reiniciar el daemon
 #   ojota logs [N]               últimas N líneas del log (default 40)
@@ -72,11 +72,11 @@ set_state() {
     echo "$1" >"$PROFILE_FILE"
     if [ "$1" = desarmado ]; then
         rm -f "$HOLD_FILE"
-        printf '  %s○%s desarmado  %sno graba · solo chequeos de salud%s\n' \
+        printf '  %s○%s Ojota en pausa  %sno graba · solo chequeos de salud%s\n' \
             "$_GREY" "$_R" "$_GREY" "$_R"
     else
         touch "$HOLD_FILE"   # que la presencia no lo desarme solo
-        printf '  %s●%s armado  %sgraba, sube y avisa · queda así hasta '\''ojota volver'\''%s\n' \
+        printf '  %s●%s Ojota vigilando  %sgraba, sube y avisa · sigue así hasta '\''ojota volver'\''%s\n' \
             "$_GREEN" "$_R" "$_GREY" "$_R"
     fi
 }
@@ -89,7 +89,7 @@ fmt_event() {
     if [ "${rest#MOVIMIENTO}" != "$rest" ]; then
         local pct="${rest#*\(}"; pct="${pct%%% de cambio*}"
         rest="movimiento · ${pct}%"
-    elif [ "${rest#clip armado:}" != "$rest" ]; then
+    elif [ "${rest#video listo:}" != "$rest" ]; then
         local dur="${rest##*~}"; dur="${dur%)*}"
         rest="video guardado · ${dur}"
     fi
@@ -101,17 +101,17 @@ cmd_status() {
     pid="$(daemon_pid)"
     cur="$(cat "$PROFILE_FILE" 2>/dev/null || echo "$DEFAULT_PROFILE")"
 
-    printf '\n  🩴 ojota  %s· vigilancia de la puerta%s\n\n' "$_GREY" "$_R"
+    printf '\n  🩴 Ojota  %s· vigilancia de la puerta%s\n\n' "$_GREY" "$_R"
 
     # estado
     case "$cur" in
         desarmado|casa)
-            row "estado" "$(printf '%s○ desarmado%s  %sno graba · solo chequeos de salud%s' \
+            row "estado" "$(printf '%s○ en pausa%s  %sno graba · solo chequeos de salud%s' \
                 "$_GREY" "$_R" "$_GREY" "$_R")" ;;
         *)
-            local nota="se desarma solo cuando volvés"
-            [ -f "$HOLD_FILE" ] && nota="a mano · queda así hasta 'ojota volver'"
-            row "estado" "$(printf '%s● armado%s  %s%s%s' \
+            local nota="se pausa sola cuando volvés"
+            [ -f "$HOLD_FILE" ] && nota="a mano · sigue así hasta 'ojota volver'"
+            row "estado" "$(printf '%s● vigilando%s  %s%s%s' \
                 "$_GREEN" "$_R" "$_GREY" "$nota" "$_R")" ;;
     esac
 
@@ -152,7 +152,7 @@ cmd_status() {
     # últimos movimientos
     section "últimos movimientos"
     local mv
-    mv="$(grep -hE "MOVIMIENTO detectado|clip armado:" "$LOG" 2>/dev/null | tail -6)"
+    mv="$(grep -hE "MOVIMIENTO detectado|video listo:" "$LOG" 2>/dev/null | tail -6)"
     if [ -z "$mv" ]; then
         printf '    %ssin movimientos registrados%s\n' "$_GREY" "$_R"
     else
@@ -162,7 +162,7 @@ cmd_status() {
     # errores desde que arrancó el daemon actual
     section "errores"
     local ts er
-    ts="$(grep -h "ojota daemon arriba" "$LOG" 2>/dev/null | tail -1 | cut -c1-19)"
+    ts="$(grep -h "ojota arranca" "$LOG" 2>/dev/null | tail -1 | cut -c1-19)"
     er="$(cat "$LOG" "$HOOK_LOG" 2>/dev/null \
           | { [ -n "$ts" ] && awk -v t="$ts" 'substr($0,1,19) >= t' || cat; } \
           | grep -E " ERROR | FALLÓ|falló" | tail -5)"

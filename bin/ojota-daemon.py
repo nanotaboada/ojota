@@ -173,10 +173,10 @@ class Daemon:
             if want_capture:
                 self.last_frame_ts = time.time()   # gracia para el health
                 if not initial:
-                    self.log.info("ARMADO: reanudo la captura")
+                    self.log.info("vigilando: reanudo la captura")
             else:
                 if not initial:
-                    self.log.info("DESARMADO: captura en pausa")
+                    self.log.info("en pausa: freno la captura")
                 with self.lock:
                     self.event_active = False
                 for p in list(self.procs):
@@ -185,7 +185,8 @@ class Daemon:
                     except Exception:  # noqa: BLE001
                         pass
         elif not initial:
-            self.log.info("estado -> %s", name)
+            self.log.info("estado -> %s",
+                          "vigilando" if name == "armado" else "en pausa")
 
     def _profile_watch(self):
         # el archivo lo escribe `bin/ojota salir|volver` (usuario) o el
@@ -205,7 +206,7 @@ class Daemon:
     def _presence_watch(self):
         if not self.c.phone_ip:
             return
-        self.log.info("presencia: %s cada %gs (armo tras %g min sin verlo)",
+        self.log.info("presencia: %s cada %gs (vigilo tras %g min sin verlo)",
                       self.c.phone_ip, self.c.presence_poll_s,
                       self.c.presence_away_min)
         last_seen = time.time()
@@ -216,10 +217,10 @@ class Daemon:
                 if not was_home:
                     was_home = True
                     if os.path.exists(self.c.manual_hold):
-                        self.log.info("presencia: volviste (hold manual, "
-                                      "no desarmo)")
+                        self.log.info("presencia: volviste, pero pediste "
+                                      "seguir vigilando (a mano)")
                     else:
-                        self.log.info("presencia: volviste → DESARMADO")
+                        self.log.info("presencia: volviste → en pausa")
                         self._write_profile("desarmado")
                         self._on_return()
             elif was_home:
@@ -227,7 +228,7 @@ class Daemon:
                 if gap > self.c.presence_away_min * 60:
                     was_home = False
                     self.log.info("presencia: sin verte hace %.0f min → "
-                                  "ARMADO", gap / 60)
+                                  "vigilando", gap / 60)
                     self._clear_manual_hold()
                     self._write_profile("armado")
             self.stop.wait(self.c.presence_poll_s)
@@ -277,9 +278,9 @@ class Daemon:
             self.log.warning("volviste: no pude archivar en Drive: %s", err)
         else:
             self.log.info("volviste: clips recientes → probablemente-vos/")
-        self._notify(1, "house", "🩴 En casa",
-                     "Llegaste, ojota se desarmó solo. Guardó el video "
-                     "de tu entrada por las dudas.")
+        self._notify(1, "house", "🩴 Llegaste",
+                     "Ojota dejó de vigilar. Te grabó entrando, "
+                     "por las dudas.")
 
     # ── ffmpeg: segmentador (copia, sin re-encodear) ──────────────────
     def run_segmenter(self):
@@ -319,7 +320,7 @@ class Daemon:
         while not self.stop.is_set():
             if not self.capture_enabled:
                 if not paused:
-                    self.log.info("%s: en pausa (desarmado)", name)
+                    self.log.info("%s: en pausa", name)
                     paused = True
                 self.stop.wait(2)
                 continue
@@ -387,8 +388,8 @@ class Daemon:
                 self.log.info("cámara: stream recuperado")
                 self.cam_down_notified = False
                 self._notify(3, "white_check_mark,camera",
-                             "🩴 Cámara reconectada",
-                             "Volvió a andar. Todo normal.")
+                             "🩴 Cámara de nuevo en línea",
+                             "Volvió la señal. Todo en orden.")
             frame = np.frombuffer(buf, np.uint8).reshape(h, w)
             l, t, r, b = self.active_roi
             cur = frame[int(t * h):int(b * h),
@@ -474,8 +475,9 @@ class Daemon:
             self.log.info("aviso instantáneo cancelado (volviste)")
             return
         hora = datetime.fromtimestamp(ts).strftime("%H:%M")
-        self._notify(4, "eyes,rotating_light", "🩴 Movimiento en casa",
-                     "Algo se movió a las %s. Guardando el video…" % hora)
+        self._notify(4, "eyes,rotating_light", "🩴 Ojo, movimiento en casa",
+                     "Algo se movió a las %s. Ojota está guardando "
+                     "el video." % hora)
 
     def _check_burst(self, ts):
         if self._in_return_window():
@@ -488,9 +490,10 @@ class Daemon:
                 and ts - self.last_burst_alert > self.c.burst_min * 60):
             self.last_burst_alert = ts
             self.log.warning("BURST: %d eventos en %g min", n, self.c.burst_min)
-            self._notify(5, "warning,eyes", "🩴 Actividad inusual",
-                         "%d alertas de movimiento en %g minutos. "
-                         "Revisá los videos." % (n, self.c.burst_min))
+            self._notify(5, "warning,eyes", "🩴 Algo raro está pasando",
+                         "%d avisos de movimiento en %g minutos. "
+                         "Revisá los videos cuanto antes."
+                         % (n, self.c.burst_min))
 
     def _event_finalizer(self):
         while not self.stop.is_set():
@@ -528,7 +531,7 @@ class Daemon:
             self.log.error("concat falló: %s", rc.stderr.strip())
             return
         dur = time.time() - start + self.c.precapture_s
-        self.log.info("clip armado: %s (%d segmentos, ~%ds)",
+        self.log.info("video listo: %s (%d segmentos, ~%ds)",
                       os.path.basename(out), len(segs), int(win_end - win_start))
         self._call_hook(out, start)
 
@@ -714,10 +717,10 @@ class Daemon:
                 self.log.error(
                     "ALERTA: sin frames de la cámara hace %.0f min", gap / 60)
                 self._notify(5, "rotating_light,camera",
-                             "🩴 Cámara sin señal",
-                             "Dejó de responder hace %.0f min. Puede ser "
-                             "un corte de luz o de internet en casa."
-                             % (gap / 60))
+                             "🩴 Ojota se quedó sin cámara",
+                             "La cámara no responde hace %.0f min. Puede "
+                             "ser un corte de luz o de internet — o que "
+                             "la hayan desenchufado." % (gap / 60))
 
     # ── arranque ───────────────────────────────────────────────────
     def start(self):
@@ -737,8 +740,8 @@ class Daemon:
         for t in threads:
             t.daemon = True
             t.start()
-        self.log.info("ojota daemon arriba (pid %d) — perfil '%s'",
-                      os.getpid(), self.profile)
+        self.log.info("ojota arranca (pid %d) — %s", os.getpid(),
+                      "vigilando" if self.profile == "armado" else "en pausa")
         while not self.stop.is_set():
             self.stop.wait(1)
         self.log.info("apagando…")
