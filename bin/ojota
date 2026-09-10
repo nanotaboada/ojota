@@ -89,7 +89,7 @@ fmt_event() {
     if [ "${rest#MOVIMIENTO}" != "$rest" ]; then
         local pct="${rest#*\(}"; pct="${pct%%% de cambio*}"
         rest="movimiento · ${pct}%"
-    elif [ "${rest#video listo:}" != "$rest" ]; then
+    elif [ "${rest#video listo:}" != "$rest" ] || [ "${rest#clip armado:}" != "$rest" ]; then
         local dur="${rest##*~}"; dur="${dur%)*}"
         rest="video guardado · ${dur}"
     fi
@@ -140,6 +140,20 @@ cmd_status() {
         row "servicio" "$(printf 'no instalado  %sver '\''ojota install'\''%s' "$_GREY" "$_R")"
     fi
 
+    # heartbeat externo (healthchecks.io) — solo si está configurado
+    if [ -n "${HEARTBEAT_URL:-}" ]; then
+        local hb hbwhen
+        hb="$(grep -hE "heartbeat: (OK|FALLÓ)" "$LOG" 2>/dev/null | tail -1)"
+        hbwhen="$(reltime "${hb:0:19}")"
+        if [ -z "$hb" ]; then
+            row "heartbeat" "$(dim 'sin datos todavía')"
+        elif [ "${hb#*heartbeat: OK}" != "$hb" ]; then
+            row "heartbeat" "$(printf '%s● al día%s  %sestable desde %s%s' "$_GREEN" "$_R" "$_GREY" "$hbwhen" "$_R")"
+        else
+            row "heartbeat" "$(printf '%s○ sin conexión%s  %sdesde %s%s' "$_RED" "$_R" "$_GREY" "$hbwhen" "$_R")"
+        fi
+    fi
+
     # cola
     segs="$(ls "$HERE/clips/buffer/"*.ts 2>/dev/null | wc -l | tr -d ' ')"
     pend="$(ls "$HERE/clips/pending/"*.mp4 2>/dev/null | wc -l | tr -d ' ')"
@@ -152,7 +166,7 @@ cmd_status() {
     # últimos movimientos
     section "últimos movimientos"
     local mv
-    mv="$(grep -hE "MOVIMIENTO detectado|video listo:" "$LOG" 2>/dev/null | tail -6)"
+    mv="$(grep -hE "MOVIMIENTO detectado|video listo:|clip armado:" "$LOG" 2>/dev/null | tail -6)"
     if [ -z "$mv" ]; then
         printf '    %ssin movimientos registrados%s\n' "$_GREY" "$_R"
     else
@@ -165,7 +179,7 @@ cmd_status() {
     ts="$(grep -h "ojota arranca" "$LOG" 2>/dev/null | tail -1 | cut -c1-19)"
     er="$(cat "$LOG" "$HOOK_LOG" 2>/dev/null \
           | { [ -n "$ts" ] && awk -v t="$ts" 'substr($0,1,19) >= t' || cat; } \
-          | grep -E " ERROR | FALLÓ|falló" | tail -5)"
+          | grep -E " ERROR | FALLÓ|falló" | grep -v "heartbeat:" | tail -5)"
     if [ -z "$er" ]; then
         printf '    %sninguno desde que arrancó (%s)%s\n' "$_GREY" "$(reltime "$ts")" "$_R"
     else
@@ -196,14 +210,13 @@ cmd_status() {
 
     # mantenimiento
     local mnt
-    mnt="$(grep -hE "prune:|backup-config:|heartbeat:" "$LOG" 2>/dev/null | tail -1)"
+    mnt="$(grep -hE "prune:|backup-config:" "$LOG" 2>/dev/null | tail -1)"
     if [ -n "$mnt" ]; then
         section "mantenimiento"
         local mr="${mnt#*INFO }"
         case "$mr" in
             *backup-config*) mr="respaldo de config" ;;
             *prune*)         mr="limpieza de Drive" ;;
-            *heartbeat*)     mr="heartbeat" ;;
         esac
         printf '    %s%-11s%s %s\n' "$_GREY" "$(reltime "${mnt:0:19}")" "$_R" "$mr"
     fi

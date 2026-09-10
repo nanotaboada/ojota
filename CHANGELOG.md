@@ -4,6 +4,16 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed
+
+- `ojota status`: un fallo transitorio del heartbeat que ya se recuperó
+  aparecía bajo "errores". Ahora hay una fila `heartbeat` propia con el
+  estado actual (al día / sin conexión desde cuándo) y esas líneas no
+  ensucian "errores" ni "mantenimiento".
+- `ojota status`: "últimos movimientos" volvía a mostrar solo las líneas
+  de detección tras el cambio de log `clip armado` → `video listo`; se
+  reconoce el texto viejo hasta que rote el log.
+
 ## [0.1.0] - 2026-09-09
 
 Primera versión etiquetada. Funcionando 24/7 como servicio; en etapa de
