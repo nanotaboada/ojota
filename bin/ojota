@@ -281,18 +281,18 @@ cmd_prune() {
 cmd_backup_config() {
     [ "$CONFIG_BACKUP" = 1 ] || { msg_ok "respaldo de config desactivado (CONFIG_BACKUP=0)"; return; }
     command -v rclone >/dev/null || { msg_err "rclone no está instalado"; exit 1; }
-    local tmp done; tmp="$(mktemp -d)"; done=""
-    [ -r "$HERE/config/ojota.conf" ] && { cp "$HERE/config/ojota.conf" "$tmp/"; done="$done ojota.conf"; }
-    [ -r "$HERE/config/profile" ]    && { cp "$HERE/config/profile" "$tmp/"; done="$done profile"; }
+    local tmp saved; tmp="$(mktemp -d)"; saved=""
+    [ -r "$HERE/config/ojota.conf" ] && { cp "$HERE/config/ojota.conf" "$tmp/"; saved="$saved ojota.conf"; }
+    [ -r "$HERE/config/profile" ]    && { cp "$HERE/config/profile" "$tmp/"; saved="$saved profile"; }
     # rclone.conf: la copia del repo puede ser de root; si no, la personal
     if [ -r "$HERE/config/rclone.conf" ]; then
-        cp "$HERE/config/rclone.conf" "$tmp/rclone.conf"; done="$done rclone.conf"
+        cp "$HERE/config/rclone.conf" "$tmp/rclone.conf"; saved="$saved rclone.conf"
     elif [ -r "$HOME/.config/rclone/rclone.conf" ]; then
-        cp "$HOME/.config/rclone/rclone.conf" "$tmp/rclone.conf"; done="$done rclone.conf"
+        cp "$HOME/.config/rclone/rclone.conf" "$tmp/rclone.conf"; saved="$saved rclone.conf"
     fi
     rclone copy "$tmp/" "$DEST/config-backup/" 2>&1 | grep -vE '^\s*$' | sed 's/^/  /'
     rm -rf "$tmp"
-    msg_ok "config respaldada en Drive:$done  (carpeta privada — tiene secretos)"
+    msg_ok "config respaldada en Drive:$saved  (carpeta privada — tiene secretos)"
 }
 
 # ── install / uninstall ──────────────────────────────────────────────

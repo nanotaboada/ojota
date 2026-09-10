@@ -312,4 +312,3 @@ de la propia llegada. En etapa de afinar la detección con uso real.
 - Validar `LIGHT_CHANGE_PCT` con luz de noche / visión nocturna IR.
 - Recordatorio si Ojota queda vigilando con el celu presente hace horas
   (te olvidaste el `ojota volver`).
-- Reemplazar `docs/logo.svg` (placeholder) por el logo definitivo.

@@ -65,6 +65,14 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
   configuración, diagnóstico), `PRIVACY.md`, `LICENSE` (MIT),
   `docs/logo.svg`.
 - Entorno Python aislado (`requirements.txt`: numpy).
+- **CI** (`.github/workflows/ci.yml`): commitlint, ShellCheck sobre los
+  scripts de `bin/` y byte-compile del daemon en cada push / PR. Evita
+  que un error de sintaxis llegue a `main` y deje el LaunchDaemon en
+  bucle de reinicio.
+- **CodeQL** (`.github/workflows/codeql.yml`): análisis de seguridad de
+  Python y de los workflows.
+- Dependabot (`pip` + `github-actions`), `commitlint.config.mjs`,
+  `.python-version`, plantillas de issue / PR y `SECURITY.md`.
 
 ### Changed
 

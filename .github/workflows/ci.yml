@@ -1,0 +1,32 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Lint commit messages
+        uses: wagoid/commitlint-github-action@v6.2.1
+
+      - name: ShellCheck
+        run: shellcheck --severity=warning bin/ojota bin/*.sh
+
+      - name: Set up Python
+        uses: actions/setup-python@v7.0.0
+        with:
+          python-version-file: ".python-version"
+
+      - name: Byte-compile the daemon
+        run: python -m py_compile bin/ojota-daemon.py bin/ojota-tune.py
