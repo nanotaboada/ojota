@@ -42,7 +42,9 @@ LIVE_UPLOAD=1              # mientras estás armado, subir el ring buffer a
                           # el video ya está en Drive salvo los últimos ~10s.
 SEGMENT_SECONDS=4           # tamaño de cada segmento del ring buffer
 PRECAPTURE_SECONDS=8        # segundos antes del evento a incluir
-POSTCAPTURE_SECONDS=10      # seguir grabando tras el último movimiento
+POSTCAPTURE_SECONDS=10      # espera sin movimiento antes de cerrar el
+                           # evento (fusiona ráfagas). El clip termina 2 s
+                           # después del último movimiento, no +N.
 BUFFER_RETENTION_SECONDS=60 # cuánto historial mantener en el ring buffer
 
 # ── Notificaciones push (ntfy.sh) ─────────────────────────────────────

@@ -82,6 +82,10 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
   "Ojo" en movimiento, preocupación en las alertas serias). Los comandos
   (`salir` / `volver` / `armar` / `desarmar`) y los valores internos de
   `config/profile` no cambian.
+- README: terminología al día (`vigilando` / `en pausa`, `Ojota`),
+  emojis en los títulos de sección, URL de clone real. Corregida la
+  descripción de `POSTCAPTURE_SECONDS` (es la espera para cerrar el
+  evento; el clip termina 2 s después del último movimiento).
 
 ### Fixed
 

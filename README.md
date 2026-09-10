@@ -1,6 +1,6 @@
-# 🩴 ojota
+# 🩴 Ojota
 
-![ojota](docs/logo.svg)
+![Ojota](docs/logo.svg)
 
 Vigilancia de una cámara IP en la LAN: detecta movimiento, graba un clip con
 pre-captura, lo sube a Google Drive, borra el local y avisa al celular.
@@ -11,11 +11,12 @@ audio y control total del pipeline.
 
 ---
 
-## Cómo funciona
+## 🔍 Cómo funciona
 
 Dos conexiones RTSP a la misma cámara, cada una con un rol. El pipeline de
-captura solo corre **armado**; **desarmado** está todo en pausa salvo los
-chequeos de salud. Se cambia con `ojota salir` / `ojota volver`, o solo: la presencia del celu en la WiFi.
+captura solo corre cuando Ojota está **vigilando**; en **pausa** queda todo
+detenido salvo los chequeos de salud. Se cambia con `ojota salir` /
+`ojota volver`, o solo: la presencia del celu en la WiFi.
 
 ```mermaid
 flowchart TB
@@ -23,10 +24,10 @@ flowchart TB
     PROF{"estado"}
 
     CAM --> PROF
-    PROF -->|"desarmado"| PAUSE["captura en pausa<br/>(no graba / no sube / no notifica)"]
-    PROF -->|"armado"| SEG
+    PROF -->|"en pausa"| PAUSE["captura detenida<br/>(no graba / no sube / no avisa)"]
+    PROF -->|"vigilando"| SEG
 
-    subgraph DAEMON["ojota-daemon.py · pipeline armado"]
+    subgraph DAEMON["ojota-daemon.py · pipeline de captura"]
         direction TB
         SEG["principal → segmentador<br/>ffmpeg -c copy"]
         BUF[("clips/buffer/<br/>ring buffer ~60s")]
@@ -49,7 +50,7 @@ flowchart TB
     HOOK -.->|"borra el local al confirmar"| PEND
     NTFY --> PHONE["📱 Celular"]
 
-    subgraph SALUD["siempre activo (armado o no)"]
+    subgraph SALUD["siempre activo (vigilando o no)"]
         direction TB
         HL["cámara sin señal → ntfy urgente"]
         HB["heartbeat → healthchecks.io → corte de luz"]
@@ -58,13 +59,13 @@ flowchart TB
     end
 ```
 
-- **Armado / desarmado**: `ojota salir` graba, sube y notifica; `ojota
+- **Vigilando / en pausa**: `ojota salir` graba, sube y avisa; `ojota
   volver` frena los dos ffmpeg y solo siguen los chequeos de salud. La
   lógica es "esto funciona cuando no estás"; si necesitás grabar estando
   en casa (alguien sospechoso en la puerta), `ojota salir` a mano.
-- **El segmentador graba siempre que está armado**, haya movimiento o no.
+- **El segmentador graba siempre que Ojota vigila**, haya movimiento o no.
   Por eso la pre-captura es casi gratis: el pasado ya está en disco.
-- **Subida en vivo** (`LIVE_UPLOAD`): armado, el ring buffer se copia a
+- **Subida en vivo** (`LIVE_UPLOAD`): mientras vigila, el ring buffer se copia a
   `gdrive:.../live/` cada ~10 s con retención de ~3 min. Si se llevan la
   Mac o cortan la red en medio de un evento, el video está en Drive salvo
   los últimos ~10 s — no hay que esperar a que el clip se arme y suba.
@@ -76,7 +77,7 @@ flowchart TB
 
 ---
 
-## Requisitos
+## 📦 Requisitos
 
 - macOS (desarrollado y probado en un Mac con Intel)
 - [Homebrew](https://brew.sh)
@@ -87,11 +88,11 @@ flowchart TB
 
 ---
 
-## Setup inicial
+## 🚀 Setup inicial
 
 ```sh
 # 1. Ubicar el repo en ~/ojota
-git clone <repo> ~/ojota && cd ~/ojota
+git clone https://github.com/nanotaboada/ojota.git ~/ojota && cd ~/ojota
 
 # 2. Entorno Python aislado
 python3 -m venv .venv
@@ -140,7 +141,7 @@ y se usa el stream principal también para detectar.
 
 ---
 
-## Configuración
+## 🎛️ Configuración
 
 Todo en `config/ojota.conf` (formato `KEY=VALUE`, lo leen bash y Python).
 
@@ -159,9 +160,9 @@ Todo en `config/ojota.conf` (formato `KEY=VALUE`, lo leen bash y Python).
 | `LIVE_UPLOAD` | 1 | Armado: subir el ring buffer a `gdrive:.../live/` en continuo |
 | `SEGMENT_SECONDS` | 4 | Tamaño de cada segmento del ring buffer |
 | `PRECAPTURE_SECONDS` | 8 | Segundos antes del evento a incluir |
-| `POSTCAPTURE_SECONDS` | 10 | Seguir grabando tras el último movimiento |
+| `POSTCAPTURE_SECONDS` | 10 | Espera sin movimiento antes de cerrar el evento (fusiona ráfagas) |
 | `BUFFER_RETENTION_SECONDS` | 60 | Historial a mantener en el ring buffer |
-| `DEFAULT_PROFILE` | `armado` | Estado al bootear si no hay config/profile |
+| `DEFAULT_PROFILE` | `armado` | Estado al bootear si no hay `config/profile` (`armado` = vigilando) |
 | `NTFY_TOPIC` | — | Topic de ntfy.sh (secreto, generar aleatorio) |
 | `NOTIFY_SILENCE_MINUTES` | 5 | Ventana anti-spam de notificaciones |
 | `INSTANT_NOTIFY_DELAY_SECONDS` | 45 | El aviso instantáneo se difiere N s; se cancela si volvés en ese lapso |
@@ -176,16 +177,16 @@ Todo en `config/ojota.conf` (formato `KEY=VALUE`, lo leen bash y Python).
 | `HEARTBEAT_MINUTES` | 15 | Cada cuánto se hace el ping |
 | `PHONE_IP` | — | IP del celu para el auto-armado por presencia; vacío = off |
 | `PRESENCE_POLL_SECONDS` | 10 | Cada cuánto se pinguea el celu |
-| `PRESENCE_AWAY_MINUTES` | 2 | Sin ver el celu N min → armar |
+| `PRESENCE_AWAY_MINUTES` | 2 | Sin ver el celu N min → Ojota vigila |
 | `RETURN_GRACE_SECONDS` | 120 | Al volver, clips de estos últimos N s → `probablemente-vos/` |
 
 ---
 
-## Operación
+## 🕹️ Operación
 
 ```sh
-bin/ojota salir           # armar: graba, sube y notifica   (alias: armar)
-bin/ojota volver          # desarmar: pausa total           (alias: desarmar)
+bin/ojota salir           # Ojota vigila: graba, sube y avisa   (alias: armar)
+bin/ojota volver          # Ojota en pausa: solo chequeos de salud (alias: desarmar)
 bin/ojota status          # estado, daemon, servicio, buffer, eventos, errores, Drive
 bin/ojota start | stop | restart
 bin/ojota logs [N]        # últimas N líneas del log
@@ -204,18 +205,18 @@ El estado se guarda en `config/profile` (`armado` / `desarmado`); el daemon
 lo toma en ~2 s. Al bootear usa lo que diga ese archivo, o `DEFAULT_PROFILE`
 si no existe.
 
-### Auto-armado por presencia del celular (recomendado)
+### 📶 Auto-armado por presencia del celular (recomendado)
 
 El daemon pinguea `PHONE_IP` cada `PRESENCE_POLL_SECONDS`. Si el celu no
-responde por `PRESENCE_AWAY_MINUTES` seguidos → **armado**; cuando vuelve a
-responder → **desarmado** (instantáneo). Un ping suelto que un celu dormido
-no contesta no cuenta: alcanza con que responda uno en la ventana.
+responde por `PRESENCE_AWAY_MINUTES` seguidos → **Ojota vigila**; cuando
+vuelve a responder → **pausa** (instantánea). Un ping suelto que un celu
+dormido no contesta no cuenta: alcanza con que responda uno en la ventana.
 
 Setup: reservá la IP del celu en el router (DHCP) y ponela en `PHONE_IP`.
 Cero apps en el teléfono. Sirve incluso si te quedás en el edificio
 (lavadero, gimnasio) siempre que salgas del alcance de tu WiFi.
 
-`ojota salir` a mano crea `config/manual-hold`: la presencia no lo desarma
+`ojota salir` a mano crea `config/manual-hold`: la presencia no lo pausa
 hasta que hagas `ojota volver` (o hasta que el celu se vaya de la red).
 
 **Al volver**, los clips de los últimos `RETURN_GRACE_SECONDS` casi seguro
@@ -223,7 +224,7 @@ sos vos entrando (el WiFi del celu tarda en reconectar): el daemon los
 mueve a `gdrive:ojota/probablemente-vos/` y no notifica. No los borra —
 si alguien te siguió, el clip te tiene a vos y a esa persona.
 
-### Alternativa: auto-armado por geofence
+### 🗺️ Alternativa: auto-armado por geofence
 
 Si el ping a la LAN no alcanzara (por ejemplo tu WiFi llega a la calle),
 el daemon puede en cambio escuchar un topic de ntfy y una automatización
@@ -231,7 +232,7 @@ de geofence en el celular (Automate, Tasker, Atajo de iOS) le postea
 `salir:TOKEN` / `volver:TOKEN`. Esa implementación se removió del daemon
 por simplicidad — está en el commit `f36a673` para reincorporar.
 
-### Como servicio (24/7, arranca al bootear)
+### ⚙️ Como servicio (24/7, arranca al bootear)
 
 ```sh
 sudo bin/ojota install               # instala el LaunchDaemon (nivel sistema)
@@ -252,12 +253,14 @@ automática no.
 Con el servicio instalado, `start` / `stop` / `restart` usan `launchctl`
 (piden sudo).
 
-### Notificaciones (ntfy.sh)
+### 🔔 Notificaciones (ntfy.sh)
 
 Instalá la app **ntfy** en el celular, suscribite al topic de tu config
 (o abrí `https://ntfy.sh/<tu-topic>` en el teléfono). Cada evento manda hora,
 un frame del clip y el link directo al video en Drive. La ventana de
-silencio agrupa avisos seguidos **sin afectar la grabación**.
+silencio agrupa avisos seguidos **sin afectar la grabación**. El aviso
+instantáneo se difiere `INSTANT_NOTIFY_DELAY_SECONDS` y se cancela si la
+presencia te reconoce en ese lapso (sos vos entrando).
 
 Alertas de prioridad alta (aparte, sin ventana de silencio):
 - la cámara deja de responder (`CAMERA_DOWN_ALERT_MINUTES`)
@@ -265,7 +268,7 @@ Alertas de prioridad alta (aparte, sin ventana de silencio):
   `EVENT_BURST_MINUTES` (algo raro: tormenta de falsos positivos o
   actividad sostenida en la puerta)
 
-### Heartbeat externo (corte de luz)
+### 💓 Heartbeat externo (corte de luz)
 
 La alerta de "cámara sin señal" solo llega si la Mac sigue viva y con
 internet. Para enterarte de un corte que apague la Mac, creá un check en
@@ -275,7 +278,7 @@ llamar, healthchecks.io te avisa.
 
 ---
 
-## Diagnóstico
+## 🩺 Diagnóstico
 
 - **Estado general**: `bin/ojota status`.
 - **Logs**: `logs/ojota.log` (daemon) y `logs/ojota-hook.log` (subidas +
@@ -296,17 +299,17 @@ llamar, healthchecks.io te avisa.
 
 ---
 
-## Estado
+## 📌 Estado
 
-Funcionando 24/7 como servicio. En etapa de afinar la detección con uso
-real.
+Funcionando 24/7 como servicio. El auto-armado por presencia se probó con
+salidas reales de hasta 2 h: reconexión del celu en ~15-20 s, sin avisos
+de la propia llegada. En etapa de afinar la detección con uso real.
 
 **Pendientes / ideas:**
 
-- Afinar el auto-armado por presencia con salidas reales (¿el celu
-  reconecta a tiempo o hace falta bajar el poll / usar `arping`?).
-- ROI para excluir zonas sin interés del encuadre.
+- ROI para excluir zonas sin interés del encuadre (puerta del baño
+  contigua).
 - Validar `LIGHT_CHANGE_PCT` con luz de noche / visión nocturna IR.
-- Recordatorio si quedás armado con el celu presente hace horas (te
-  olvidaste el `ojota volver`).
+- Recordatorio si Ojota queda vigilando con el celu presente hace horas
+  (te olvidaste el `ojota volver`).
 - Reemplazar `docs/logo.svg` (placeholder) por el logo definitivo.
