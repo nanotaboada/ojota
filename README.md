@@ -1,7 +1,5 @@
 # 🩴 Ojota
 
-![Ojota](docs/logo.svg)
-
 Vigilancia de una cámara IP en la LAN: detecta movimiento, graba un clip con
 pre-captura, lo sube a Google Drive, borra el local y avisa al celular.
 Pensado para correr 24/7 en una Mac.
