@@ -4,6 +4,11 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-09-09
+
+Primera versión etiquetada. Funcionando 24/7 como servicio; en etapa de
+afinar la detección con uso real.
+
 ### Added
 
 - **Daemon de captura y detección** (`bin/ojota-daemon.py`):
@@ -108,8 +113,5 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
   presencia te reconoce — cubre la latencia de reconexión del celu al
   WiFi al entrar, que hacía llegar 2 avisos de tu propia llegada.
 
-### Estado
-
-Etapas 1–6 completas. Ideas para más adelante: auto-armado por presencia
-del celular en la LAN, ROI para acotar la zona de detección, validar los
-umbrales con luz de noche.
+[Unreleased]: https://github.com/nanotaboada/ojota/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/nanotaboada/ojota/releases/tag/v0.1.0
