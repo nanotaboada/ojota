@@ -15,7 +15,7 @@ import subprocess
 import sys
 import threading
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
 from logging.handlers import RotatingFileHandler
 import logging
 
@@ -90,6 +90,9 @@ class Conf:
         self.rclone_dest = "%s:%s" % (d.get("RCLONE_REMOTE", "gdrive"),
                                       d.get("RCLONE_PATH", "ojota"))
         self.config_backup = d.get("CONFIG_BACKUP", "1") == "1"
+        self.nightly_sleep_hour = int(d.get("NIGHTLY_SLEEP_HOUR", 3))
+        self.nightly_sleep_minute = int(d.get("NIGHTLY_SLEEP_MINUTE", 33))
+        self.nightly_sleep_min = int(d.get("NIGHTLY_SLEEP_MINUTES", 0))
         self.heartbeat_url = d.get("HEARTBEAT_URL", "").strip()
         self.heartbeat_min = float(d.get("HEARTBEAT_MINUTES", 15))
         self.burst_count = int(d.get("EVENT_BURST_COUNT", 10))
@@ -648,11 +651,60 @@ class Daemon:
                 self._run_cli("backup-config", env)
                 last_backup = time.time()
 
-    def _run_cli(self, sub, env):
+    # ── sueño nocturno: le da a la Touch Bar (y compañía) un ciclo de
+    # sleep/wake real cada tanto, solo si estoy en pausa (en casa, sin
+    # nada que vigilar). Mientras vigilás afuera, no se toca nunca. ────
+    def _nightly_sleep_watch(self):
+        if self.c.nightly_sleep_min <= 0:
+            return
+        self.log.info("sueño nocturno: %02d:%02d, %d min si estoy en pausa",
+                      self.c.nightly_sleep_hour, self.c.nightly_sleep_minute,
+                      self.c.nightly_sleep_min)
+        env = dict(os.environ, OJOTA_CONF=CONF_PATH)
+        while not self.stop.is_set():
+            wait_s = self._seconds_until(self.c.nightly_sleep_hour,
+                                         self.c.nightly_sleep_minute)
+            if self.stop.wait(wait_s):
+                return
+            self._run_cli("night-sleep", env,
+                          timeout=(self.c.nightly_sleep_min + 15) * 60)
+
+    @staticmethod
+    def _seconds_until(hour, minute):
+        now = datetime.now()
+        target = now.replace(hour=hour, minute=minute, second=0,
+                             microsecond=0)
+        if target <= now:
+            target += timedelta(days=1)
+        return (target - now).total_seconds()
+
+    def _sleep_policy_guard(self):
+        """Red de seguridad: fuera de la ventana de sueño nocturno,
+        garantiza que disablesleep siga en 1 pase lo que pase con
+        night-sleep (p.ej. si pmset schedule se cuelga a mitad de
+        camino). Reafirmarlo cuando ya está en 1 es un no-op inocuo."""
+        if self.c.nightly_sleep_min <= 0:
+            return
+        margin_min = 5
+        while not self.stop.wait(300):
+            now = datetime.now()
+            start = now.replace(hour=self.c.nightly_sleep_hour,
+                                minute=self.c.nightly_sleep_minute,
+                                second=0, microsecond=0)
+            end = start + timedelta(
+                minutes=self.c.nightly_sleep_min + margin_min)
+            if now < start or now > end:
+                try:
+                    subprocess.run(["pmset", "-a", "disablesleep", "1"],
+                                   capture_output=True, timeout=10)
+                except Exception:  # noqa: BLE001
+                    pass
+
+    def _run_cli(self, sub, env, timeout=300):
         if not os.path.exists(self.c.cli):
             return
         try:
-            r = subprocess.run([self.c.cli, sub], env=env, timeout=300,
+            r = subprocess.run([self.c.cli, sub], env=env, timeout=timeout,
                                capture_output=True, text=True)
             for line in (r.stdout or "").splitlines():
                 if line.strip():
@@ -736,6 +788,10 @@ class Daemon:
             threading.Thread(target=self._pending_flush, name="flush"),
             threading.Thread(target=self._maintenance, name="maint"),
             threading.Thread(target=self._heartbeat, name="heartbeat"),
+            threading.Thread(target=self._nightly_sleep_watch,
+                             name="nightsleep"),
+            threading.Thread(target=self._sleep_policy_guard,
+                             name="sleepguard"),
         ]
         for t in threads:
             t.daemon = True

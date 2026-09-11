@@ -171,6 +171,8 @@ Todo en `config/ojota.conf` (formato `KEY=VALUE`, lo leen bash y Python).
 | `RETENTION_CHECK_HOURS` | 24 | Cada cuánto corre la limpieza |
 | `PENDING_RETRY_MINUTES` | 3 | Cada cuánto reintentar subidas que fallaron |
 | `CONFIG_BACKUP` | 1 | Subir `config/` a Drive (`config-backup/`) — incluye secretos |
+| `NIGHTLY_SLEEP_HOUR` / `MINUTE` | 3 / 33 | Hora del ciclo de sleep/wake nocturno |
+| `NIGHTLY_SLEEP_MINUTES` | 0 | Duración del sueño; 0 = desactivado. Solo si está en pausa |
 | `HEARTBEAT_URL` | — | Ping periódico (healthchecks.io etc.); vacío = off |
 | `HEARTBEAT_MINUTES` | 15 | Cada cuánto se hace el ping |
 | `PHONE_IP` | — | IP del celu para el auto-armado por presencia; vacío = off |
@@ -250,6 +252,26 @@ automática no.
 `KeepAlive` lo reinicia solo si crashea; un `stop` ordenado no lo revive.
 Con el servicio instalado, `start` / `stop` / `restart` usan `launchctl`
 (piden sudo).
+
+### 🌙 Sueño nocturno (opcional)
+
+`disablesleep=1` implica que la Mac nunca duerme, para siempre. Tras
+varios días seguidos sin un solo ciclo de sleep/wake, algún periférico
+(se sospecha la Touch Bar en modelos con ella) puede colgarse y pedir un
+reinicio a mano. Mitigación: `NIGHTLY_SLEEP_MINUTES` (0 = desactivado)
+hace que, a una hora fija (`NIGHTLY_SLEEP_HOUR`/`MINUTE`), el daemon le
+devuelva a la Mac el permiso de dormir por unos minutos — **solo si en
+ese momento está en pausa** (en casa, nada que vigilar). Si está
+vigilando esa noche, no toca nada.
+
+Antes de dormir verifica que el despertar programado quedó agendado de
+verdad; si no, no duerme y se queda despierta. Un hilo aparte reafirma
+`disablesleep=1` cada 5 min fuera de esa ventana, por si el ciclo falla
+a mitad de camino. Probalo a mano primero, con la Mac a la vista:
+
+```sh
+sudo bin/ojota night-sleep
+```
 
 ### 🔔 Notificaciones (ntfy.sh)
 

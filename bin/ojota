@@ -9,6 +9,7 @@
 #   ojota test-notify            mandar una notificación de prueba
 #   ojota prune                  borrar de Drive los clips más viejos que RETENTION_DAYS
 #   ojota backup-config          subir config/ a Drive (config-backup/)
+#   ojota night-sleep            ciclo de sleep/wake si está en pausa (prueba manual)
 #   ojota install | uninstall    instalar / quitar el servicio (LaunchDaemon, pide sudo)
 
 set -u
@@ -308,6 +309,46 @@ cmd_backup_config() {
     msg_ok "config respaldada en Drive:$saved  (carpeta privada — tiene secretos)"
 }
 
+# ── sueño nocturno ──────────────────────────────────────────────────
+# Un ciclo real de sleep/wake cada tanto: se sospecha que le hace falta
+# a la Touch Bar tras uptimes muy largos. Solo si está en pausa (en
+# casa) — nunca si está vigilando. Si algo falla, NO duerme: se queda
+# despierta y avisa. El daemon lo corre a horario fijo (NIGHTLY_SLEEP_*
+# en la config); corrido a mano sirve para probarlo.
+cmd_night_sleep() {
+    need_root night-sleep
+    local mins="${NIGHTLY_SLEEP_MINUTES:-0}"
+    if ! [ "${mins:-0}" -gt 0 ] 2>/dev/null; then
+        msg_ok "sueño nocturno desactivado (NIGHTLY_SLEEP_MINUTES=0)"
+        return
+    fi
+    if [ "$(cat "$PROFILE_FILE" 2>/dev/null)" != "desarmado" ]; then
+        msg_ok "vigilando — no duermo esta noche"
+        return
+    fi
+    local wake_in wake_out
+    wake_in="$(date -v+"${mins}"M '+%m/%d/%y %H:%M:%S')"
+    wake_out="$(date -v+"${mins}"M '+%m/%d/%Y %H:%M:%S')"
+    pmset schedule wake "$wake_in" >/dev/null 2>&1
+    if ! pmset -g sched 2>/dev/null | grep -qF "$wake_out"; then
+        msg_err "no pude agendar el despertar ($wake_in) — no duermo, sigo despierta"
+        return 1
+    fi
+    pmset -a disablesleep 0
+    local before after elapsed
+    before="$(date +%s)"
+    msg_ok "durmiendo ~${mins} min, despierto ${wake_in}"
+    pmset sleepnow
+    pmset -a disablesleep 1
+    after="$(date +%s)"
+    elapsed=$(( after - before ))
+    if [ "$elapsed" -lt $(( mins * 30 )) ]; then
+        msg_warn "duró ${elapsed}s, menos de lo esperado — puede no haber dormido de verdad"
+    else
+        msg_ok "de vuelta (${elapsed}s), disablesleep restaurado"
+    fi
+}
+
 # ── install / uninstall ──────────────────────────────────────────────
 cmd_install() {
     need_root install
@@ -376,14 +417,15 @@ case "${1:-}" in
     logs)          tail -n "${2:-40}" "$LOG" ;;
     prune)         cmd_prune ;;
     backup-config) cmd_backup_config ;;
+    night-sleep)   cmd_night_sleep ;;
     test-notify)   "$HERE/bin/ojota-notify.sh" 3 "eyes" "🩴 Prueba" \
                        "Las notificaciones andan. $(date '+%H:%M')." \
                        && msg_ok "notificación de prueba enviada" \
                        || msg_err "no se pudo enviar — revisá NTFY_TOPIC" ;;
     ""|-h|--help|help)
-        sed -n '2,12p' "$SELF" | sed 's/^# \{0,1\}//' ;;
+        sed -n '2,13p' "$SELF" | sed 's/^# \{0,1\}//' ;;
     *)
         msg_err "comando desconocido: $1"
-        sed -n '2,12p' "$SELF" | sed 's/^# \{0,1\}//' >&2
+        sed -n '2,13p' "$SELF" | sed 's/^# \{0,1\}//' >&2
         exit 1 ;;
 esac

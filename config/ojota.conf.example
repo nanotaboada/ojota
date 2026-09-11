@@ -90,6 +90,17 @@ CONFIG_BACKUP=1             # subir config/ a Drive (config-backup/) para
                            # poder reproducir el setup. OJO: incluye la
                            # pass RTSP y el token — mantené la carpeta privada.
 
+# ── Sueño nocturno (opcional) ─────────────────────────────────────────
+# La Mac corre con disablesleep=1 (nunca duerme) para que ojota no
+# pierda la cámara. Tras uptimes muy largos, algún periférico (p.ej. la
+# Touch Bar) puede colgarse. Mitigación: un ciclo real de sleep/wake
+# cada noche, SOLO si está en pausa (en casa) — nunca si está vigilando.
+# Si algo falla al agendar el despertar, no duerme: se queda despierta.
+# NIGHTLY_SLEEP_MINUTES=0 desactiva esto por completo.
+NIGHTLY_SLEEP_HOUR=3
+NIGHTLY_SLEEP_MINUTE=33
+NIGHTLY_SLEEP_MINUTES=0
+
 # ── Heartbeat externo (opcional) ──────────────────────────────────────
 # Ping periódico a un servicio tipo healthchecks.io: si la Mac se apaga
 # (corte de luz, crash), ese servicio te avisa. Vacío = desactivado.

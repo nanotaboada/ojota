@@ -4,6 +4,17 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+
+- **Sueño nocturno** (`NIGHTLY_SLEEP_MINUTES`, 0 = desactivado): a
+  horario fijo, si está en pausa, le devuelve a la Mac el permiso de
+  dormir unos minutos y programa que despierte sola — mitiga el colgado
+  de periféricos (Touch Bar) tras uptimes muy largos con
+  `disablesleep=1`. Nunca corre si está vigilando. Verifica que el
+  despertar quedó agendado antes de dormir (si no, no duerme); un hilo
+  aparte reafirma `disablesleep=1` cada 5 min fuera de la ventana como
+  red de seguridad. `bin/ojota night-sleep` para probarlo a mano.
+
 ### Fixed
 
 - `ojota status`: un fallo transitorio del heartbeat que ya se recuperó
