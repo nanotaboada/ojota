@@ -20,6 +20,7 @@ CONF="${OJOTA_CONF:-$HERE/config/ojota.conf}"
 : "${RCLONE_PATH:=ojota}"
 : "${NOTIFY_SILENCE_MINUTES:=5}"
 : "${OJOTA_NOTIFY:=1}"
+: "${INSTANT_NOTIFY_DELAY_SECONDS:=45}"
 
 LOG="$HERE/logs/ojota-hook.log"
 NOTIFY_STATE="$HERE/clips/.last_notify"
@@ -55,6 +56,16 @@ if ! mkdir "$lock" 2>/dev/null; then
     exit 0
 fi
 trap 'rmdir "$lock" 2>/dev/null' EXIT
+
+# ── esperar el mismo margen que el aviso instantáneo antes de decidir ──
+# El pipeline (armar+subir+avisar) puede ser más rápido que la
+# reconexión del celu al volver; decidir demasiado pronto deja pasar
+# avisos que la ventana de "volviste" (más abajo) debería haber frenado.
+if [ -n "${PHONE_IP:-}" ]; then
+    target=$(( event_ts + INSTANT_NOTIFY_DELAY_SECONDS ))
+    wait_s=$(( target - $(date +%s) ))
+    [ "$wait_s" -gt 0 ] && sleep "$wait_s"
+fi
 
 # ── ¿ventana de "volviste"? → archivar sin notificar ────────────────
 subdir=""

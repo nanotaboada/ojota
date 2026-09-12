@@ -4,6 +4,15 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed
+
+- Carrera entre el pipeline del clip y la reconexión del celu al
+  volver: si armar+subir+avisar era más rápido que la presencia
+  reconociendo el regreso, el aviso salía igual aunque la ventana de
+  "volviste" se activara segundos después. El hook ahora espera
+  `INSTANT_NOTIFY_DELAY_SECONDS` desde el motion original antes de
+  chequear la ventana, igual que el aviso instantáneo.
+
 ### Added
 
 - **Sueño nocturno** (`NIGHTLY_SLEEP_MINUTES`, 0 = desactivado): a

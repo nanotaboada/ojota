@@ -630,8 +630,11 @@ class Daemon:
                     age = time.time() - os.path.getmtime(path)
                 except FileNotFoundError:
                     continue
-                if age < 60:
-                    continue  # recién creado, el hook original sigue vivo
+                if age < 90:
+                    # recién creado: el hook original sigue vivo (puede
+                    # estar esperando la ventana de "volviste" antes de
+                    # decidir si avisa, ver INSTANT_NOTIFY_DELAY_SECONDS)
+                    continue
                 self.log.info("reintento de subida pendiente: %s", name)
                 self._call_hook(path, os.path.getmtime(path))
 

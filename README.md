@@ -163,7 +163,7 @@ Todo en `config/ojota.conf` (formato `KEY=VALUE`, lo leen bash y Python).
 | `DEFAULT_PROFILE` | `armado` | Estado al bootear si no hay `config/profile` (`armado` = vigilando) |
 | `NTFY_TOPIC` | — | Topic de ntfy.sh (secreto, generar aleatorio) |
 | `NOTIFY_SILENCE_MINUTES` | 5 | Ventana anti-spam de notificaciones |
-| `INSTANT_NOTIFY_DELAY_SECONDS` | 45 | El aviso instantáneo se difiere N s; se cancela si volvés en ese lapso |
+| `INSTANT_NOTIFY_DELAY_SECONDS` | 45 | El aviso instantáneo (y el del hook, si hay `PHONE_IP`) se difiere N s; se cancela si volvés en ese lapso |
 | `CAMERA_DOWN_ALERT_MINUTES` | 5 | Alerta si la cámara no responde por N min |
 | `EVENT_BURST_COUNT` / `EVENT_BURST_MINUTES` | 10 / 15 | Alerta "muchos eventos" si se acumulan |
 | `RCLONE_REMOTE` / `RCLONE_PATH` | `gdrive` / `ojota` | Destino en Drive |
@@ -223,6 +223,11 @@ hasta que hagas `ojota volver` (o hasta que el celu se vaya de la red).
 sos vos entrando (el WiFi del celu tarda en reconectar): el daemon los
 mueve a `gdrive:ojota/probablemente-vos/` y no notifica. No los borra —
 si alguien te siguió, el clip te tiene a vos y a esa persona.
+
+El hook espera `INSTANT_NOTIFY_DELAY_SECONDS` desde el motion original
+antes de decidir si avisa — si armara/subiera/avisara al toque, con una
+conexión rápida le puede ganar de mano a la reconexión del celu y mandar
+el aviso *antes* de que la ventana de "volviste" exista.
 
 ### 🗺️ Alternativa: auto-armado por geofence
 
