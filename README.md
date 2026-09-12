@@ -207,6 +207,37 @@ si no existe.
 
 ### 📶 Auto-armado por presencia del celular (recomendado)
 
+Los mismos disparadores (movimiento, celu reconectando) llevan a dos
+desenlaces bien distintos según el momento en que ocurren:
+
+```mermaid
+sequenceDiagram
+    participant Vos as 📱 Vos
+    participant Ojota as 🩴 Ojota
+    participant Drive as ☁️ Drive
+    participant Cel as 🔔 Tu celu (ntfy)
+
+    rect rgb(255,235,235)
+    Note over Vos,Cel: Evento real — estás afuera
+    Vos--xOjota: sin ping hace 2 min
+    Note right of Ojota: vigilando
+    Ojota->>Ojota: movimiento detectado
+    Ojota->>Drive: sube el ring buffer en vivo
+    Ojota-->>Cel: (45s después, nadie volvió) "Ojo, movimiento en casa"
+    Ojota->>Drive: clip armado y subido
+    Ojota-->>Cel: link + frame del clip
+    end
+
+    rect rgb(235,245,255)
+    Note over Vos,Cel: Sos vos, volviendo
+    Ojota->>Ojota: movimiento detectado (entrando)
+    Vos->>Ojota: el celu reconecta al WiFi (~15-30s)
+    Note right of Ojota: en pausa + ventana "volviste"
+    Ojota->>Drive: clip → probablemente-vos/ (sin aviso)
+    Ojota-->>Cel: solo "Llegaste" (informativo, prioridad mínima)
+    end
+```
+
 El daemon pinguea `PHONE_IP` cada `PRESENCE_POLL_SECONDS`. Si el celu no
 responde por `PRESENCE_AWAY_MINUTES` seguidos → **Ojota vigila**; cuando
 vuelve a responder → **pausa** (instantánea). Un ping suelto que un celu

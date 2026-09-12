@@ -4,6 +4,12 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 
 ## [Unreleased]
 
+### Added (docs)
+
+- README: diagrama de secuencia con los dos casos "orgánicos" (evento
+  real vs. sos vos volviendo) junto al de auto-armado por presencia,
+  complementando el diagrama técnico de arquitectura.
+
 ### Fixed
 
 - Carrera entre el pipeline del clip y la reconexión del celu al
