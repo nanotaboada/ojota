@@ -9,6 +9,7 @@ pre-captura y se llama al hook.
 
 import os
 import re
+import select
 import shlex
 import signal
 import subprocess
@@ -72,6 +73,7 @@ class Conf:
         self.min_frames = int(d.get("MOTION_MIN_FRAMES", 3))
         self.light_pct = float(d.get("LIGHT_CHANGE_PCT", 70))
         self.warmup_s = float(d.get("DETECT_WARMUP_SECONDS", 10))
+        self.detect_stall_s = float(d.get("DETECT_STALL_SECONDS", 20))
         self.roi = _parse_roi(d.get("DETECT_ROI", "0,0,1,1"))
         self.default_profile = d.get("DEFAULT_PROFILE", "armado")
         self.home = d.get("OJOTA_HOME") or ROOT
@@ -382,7 +384,14 @@ class Daemon:
         warmup_until = run_start + self.c.warmup_s
         motion_streak = 0
         while not self.stop.is_set() and self.capture_enabled:
-            buf = _read_exact(p.stdout, frame_bytes)
+            try:
+                buf = _read_exact(p.stdout, frame_bytes,
+                                  timeout=self.c.detect_stall_s)
+            except _ReadStalled:
+                self.log.warning(
+                    "detector: sin frames hace %gs, reinicio la conexión",
+                    self.c.detect_stall_s)
+                break
             if buf is None:
                 break
             now = time.time()
@@ -816,10 +825,19 @@ class Daemon:
         self.stop.set()
 
 
-def _read_exact(stream, n):
+class _ReadStalled(Exception):
+    """El stream no mandó nada en `timeout` s (ffmpeg se colgó sin
+    cerrar la conexión). Distinto de EOF: el proceso sigue vivo."""
+
+
+def _read_exact(stream, n, timeout=None):
     chunks = []
     got = 0
     while got < n:
+        if timeout is not None:
+            ready, _, _ = select.select([stream], [], [], timeout)
+            if not ready:
+                raise _ReadStalled()
         b = stream.read(n - got)
         if not b:
             return None

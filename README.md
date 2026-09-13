@@ -154,6 +154,7 @@ Todo en `config/ojota.conf` (formato `KEY=VALUE`, lo leen bash y Python).
 | `MOTION_MIN_FRAMES` | 3 | Frames seguidos sobre el umbral para disparar |
 | `LIGHT_CHANGE_PCT` | 70 | Cambio ≥ esto = cambio de luz, se ignora |
 | `DETECT_WARMUP_SECONDS` | 15 | Ignorar movimiento los primeros N s tras conectar |
+| `DETECT_STALL_SECONDS` | 20 | Si ffmpeg deja de mandar frames sin caerse, reconectar tras N s |
 | `DETECT_ROI` | `0,0,1,1` | Zona de detección (izq,arr,der,ab en fracciones). No recorta el video. |
 | `LIVE_UPLOAD` | 1 | Armado: subir el ring buffer a `gdrive:.../live/` en continuo |
 | `SEGMENT_SECONDS` | 4 | Tamaño de cada segmento del ring buffer |
@@ -343,7 +344,9 @@ llamar, healthchecks.io te avisa.
   movimiento, ajustar `PIXEL_DELTA` y `MOTION_AREA_PCT`.
 - **Falsos positivos por luz**: bajar `LIGHT_CHANGE_PCT` o acotar `DETECT_ROI`.
 - **La cámara se cae**: el daemon reintenta con backoff exponencial y manda
-  una alerta si no hay frames por `CAMERA_DOWN_ALERT_MINUTES`.
+  una alerta si no hay frames por `CAMERA_DOWN_ALERT_MINUTES`. Si ffmpeg se
+  cuelga sin cerrar la conexión (se queda sin mandar datos pero no cae),
+  `DETECT_STALL_SECONDS` corta y reconecta mucho antes de llegar a esa alerta.
 - **"No route to host" en el log del servicio**: el daemon no corre como
   root (Local Network Privacy de Sequoia). Reinstalá con `sudo bin/ojota
   install` — el plist actual ya corre como root.

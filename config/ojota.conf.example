@@ -23,6 +23,9 @@ LIGHT_CHANGE_PCT=70         # si cambia más que esto de golpe = cambio de
                            # luz (IR día/noche, luz que se prende): ignorar
 DETECT_WARMUP_SECONDS=15    # ignorar movimiento los primeros N s tras
                            # (re)conectar: el H.264 tarda en estabilizar
+DETECT_STALL_SECONDS=20    # si ffmpeg deja de mandar frames sin cerrar la
+                           # conexión (se cuelga en vez de caerse), cortar
+                           # y reconectar tras N s sin datos
 DETECT_ROI="0,0,1,1"       # zona donde se busca movimiento (izq,arriba,der,
                            # abajo en fracciones 0-1). 0,0,1,1 = frame entero.
                            # NO recorta el video: el clip siempre es completo.

@@ -4,6 +4,17 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed
+
+- **Detector colgado sin autorecuperarse**: si ffmpeg dejaba de mandar
+  frames sin cerrar la conexión (colgado en vez de caído), la lectura de
+  frames bloqueaba para siempre — el hilo nunca volvía a chequear
+  armado/desarmado ni el apagado, y no había forma de que se recupere
+  solo (encontrado en producción: quedó así ~21 h hasta un restart
+  manual). Ahora la lectura tiene un timeout (`DETECT_STALL_SECONDS`,
+  20 s por defecto): si no llegan datos a tiempo, corta la conexión y
+  deja que el reintento con backoff que ya existía haga su trabajo.
+
 ### Added (docs)
 
 - README: diagrama de secuencia con los dos casos "orgánicos" (evento
