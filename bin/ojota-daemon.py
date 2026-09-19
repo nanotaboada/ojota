@@ -143,6 +143,7 @@ class Daemon:
         self.last_frame_ts = time.time()
         self.cam_down_notified = False
         self.procs = []
+        self.detector_proc = None
         # anti-burst / avisos
         self.event_times = []
         self.last_burst_alert = 0.0
@@ -342,10 +343,14 @@ class Daemon:
                 backoff = min(backoff * 2, 60)
                 continue
             self.procs.append(p)
+            if name == "detector":
+                self.detector_proc = p
             try:
                 handler(p)
             except Exception as exc:  # noqa: BLE001
                 self.log.error("%s: handler cortó: %s", name, exc)
+            if name == "detector":
+                self.detector_proc = None
             p.poll()
             if p.returncode is None:
                 p.terminate()
@@ -786,6 +791,26 @@ class Daemon:
                              "ser un corte de luz o de internet — o que "
                              "la hayan desenchufado." % (gap / 60))
 
+    def _detector_watchdog(self):
+        """Red de seguridad: si el hilo del detector queda trabado en
+        algún punto que el timeout de _read_exact no llega a cubrir,
+        esto lo nota igual — mira el reloj, no depende de que el hilo
+        trabado coopere — y mata el ffmpeg del detector a la fuerza
+        para forzar la reconexión."""
+        margin = 3  # múltiplo de holgura sobre DETECT_STALL_SECONDS
+        while not self.stop.wait(15):
+            if not self.capture_enabled or self.detector_proc is None:
+                continue
+            gap = time.time() - self.last_frame_ts
+            if gap > self.c.detect_stall_s * margin:
+                self.log.warning(
+                    "detector: sin frames hace %.0fs pese al timeout — "
+                    "lo mato a la fuerza", gap)
+                try:
+                    self.detector_proc.kill()
+                except Exception:  # noqa: BLE001
+                    pass
+
     # ── arranque ───────────────────────────────────────────────────
     def start(self):
         threads = [
@@ -794,6 +819,7 @@ class Daemon:
             threading.Thread(target=self._event_finalizer, name="finalizer"),
             threading.Thread(target=self._buffer_cleaner, name="cleaner"),
             threading.Thread(target=self._health_watch, name="health"),
+            threading.Thread(target=self._detector_watchdog, name="detwatch"),
             threading.Thread(target=self._profile_watch, name="profile"),
             threading.Thread(target=self._presence_watch, name="presence"),
             threading.Thread(target=self._live_upload, name="live"),

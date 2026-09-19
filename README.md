@@ -355,7 +355,12 @@ avisar hasta que probás "Test!" o te toca un corte real.
 - **La cámara se cae**: el daemon reintenta con backoff exponencial y manda
   una alerta si no hay frames por `CAMERA_DOWN_ALERT_MINUTES`. Si ffmpeg se
   cuelga sin cerrar la conexión (se queda sin mandar datos pero no cae),
-  `DETECT_STALL_SECONDS` corta y reconecta mucho antes de llegar a esa alerta.
+  `DETECT_STALL_SECONDS` corta y reconecta mucho antes de llegar a esa
+  alerta. De respaldo, un hilo aparte chequea cada 15s si pasó mucho más
+  tiempo del esperado sin frames (3x ese valor) estando armado, y mata
+  el proceso de ffmpeg del detector a la fuerza — cubre el caso de que
+  el hilo quede trabado en algún punto que ese timeout no llegue a
+  cubrir.
 - **"No route to host" en el log del servicio**: el daemon no corre como
   root (Local Network Privacy de Sequoia). Reinstalá con `sudo bin/ojota
   install` — el plist actual ya corre como root.

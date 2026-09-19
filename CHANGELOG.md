@@ -21,6 +21,16 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
   manual). Ahora la lectura tiene un timeout (`DETECT_STALL_SECONDS`,
   20 s por defecto): si no llegan datos a tiempo, corta la conexión y
   deja que el reintento con backoff que ya existía haga su trabajo.
+- **El detector se volvió a colgar con el fix anterior ya cargado**
+  (~18 h hasta el siguiente restart manual). Auditados `_notify`
+  (ya no bloqueaba, usa `Popen`), `_probe_detect_height` (ya tenía
+  timeout) y los usos de `self.lock` (secciones cortas, sin bloqueos
+  adentro) — sin encontrar una segunda causa puntual. Agregada una red
+  de seguridad de más alto nivel: un hilo que cada 15s chequea si pasó
+  mucho más tiempo del esperado sin frames estando armado (3x
+  `DETECT_STALL_SECONDS`) y mata el proceso de ffmpeg del detector a
+  la fuerza si es así — no depende de que el hilo trabado coopere,
+  solo mira el reloj.
 
 ### Added (docs)
 
