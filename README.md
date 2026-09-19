@@ -331,7 +331,16 @@ La alerta de "cámara sin señal" solo llega si la Mac sigue viva y con
 internet. Para enterarte de un corte que apague la Mac, creá un check en
 [healthchecks.io](https://healthchecks.io) (gratis) y poné su URL de ping
 en `HEARTBEAT_URL`. El daemon la llama cada `HEARTBEAT_MINUTES`; si deja de
-llamar, healthchecks.io te avisa.
+llamar, healthchecks.io te avisa — configurale ahí una integración (ntfy,
+email) para que ese aviso también te llegue al celu, y **probala con el
+botón "Test!" apenas la armes**, no esperes a un corte real para
+descubrir que está mal configurada.
+
+Si usás la integración de ntfy de healthchecks.io: el campo **"Topic"**
+va solo con el nombre del topic (`ojota-xxxxx...`), **sin** el
+`https://ntfy.sh/` adelante — eso ya lo cubre el campo "Server URL"
+aparte. Ponerle la URL completa ahí rompe la entrega con un 400, sin
+avisar hasta que probás "Test!" o te toca un corte real.
 
 ---
 

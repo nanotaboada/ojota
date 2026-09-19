@@ -4,6 +4,13 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 
 ## [Unreleased]
 
+### Added (docs)
+
+- README: nota sobre la integración de ntfy en healthchecks.io — el
+  campo "Topic" va solo con el nombre del topic, sin la URL completa
+  (rompe la entrega con un 400 si se pone mal), y probarla con "Test!"
+  apenas se configura en vez de esperar a un corte real.
+
 ### Fixed
 
 - **Detector colgado sin autorecuperarse**: si ffmpeg dejaba de mandar
