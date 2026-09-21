@@ -4,6 +4,26 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+
+- **`tests/test_daemon.py`**: tests puntuales (sin pytest, asserts
+  simples) para los mecanismos de timeout que ya se colgaron alguna
+  vez en producción — lectura de frames, limpieza de procesos
+  (SIGTERM → SIGKILL) y la decisión del watchdog. Corre solo en CI en
+  cada push/PR. No reemplaza pruebas con la cámara real, cubre la
+  lógica de los timeouts en aislado.
+
+### Fixed
+
+- **Auditoría completa de llamadas externas sin timeout** (motivada
+  por los tres colgados seguidos del detector): encontrado un cuarto
+  punto sin cubrir — el `concat` de ffmpeg en `_finalize_event` (arma
+  el clip final) no tenía ningún límite de tiempo, en su propio hilo
+  (`_event_finalizer`). Un colgado ahí se hubiera llevado puesto el
+  armado de clips para toda la sesión. Agregado timeout de 30s. De
+  paso, `rclone size` y `rclone link` en el hook tampoco tenían límite
+  de red — agregado `--contimeout 20s --timeout 30s` a los dos.
+
 ### Added (docs)
 
 - README: nota sobre la integración de ntfy en healthchecks.io — el

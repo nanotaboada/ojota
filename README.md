@@ -197,6 +197,9 @@ bin/ojota backup-config   # subir config/ a Drive (config-backup/)
 
 # Calibrar la detección (no graba, solo muestra el % de cambio por frame)
 .venv/bin/python bin/ojota-tune.py [--main] [--seconds=N]
+
+# Tests de los mecanismos de timeout (sin cámara, corre en CI también)
+.venv/bin/python tests/test_daemon.py
 ```
 
 `prune` y `backup-config` también corren solos desde el daemon (retención

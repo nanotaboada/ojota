@@ -83,7 +83,8 @@ if ! rclone copy "${RCLONE_OPTS[@]}" "$clip" "$DEST$subdir/" 2>>"$LOG"; then
 fi
 
 # ── 2. verificar ────────────────────────────────────────────────────
-remote_size="$(rclone size --json "$DEST$subdir/$name" 2>/dev/null \
+remote_size="$(rclone size --json "$DEST$subdir/$name" \
+               --contimeout 20s --timeout 30s 2>/dev/null \
                | sed -n 's/.*"bytes":\([0-9]*\).*/\1/p')"
 if [ -z "$remote_size" ] || [ "$remote_size" != "$local_size" ]; then
     log "hook: verificación falló de $name (local=$local_size remoto=${remote_size:-?}) — no borro"
@@ -107,7 +108,8 @@ if [ "$OJOTA_NOTIFY" = "1" ]; then
     last="$(cat "$NOTIFY_STATE" 2>/dev/null || echo 0)"
     silence=$(( NOTIFY_SILENCE_MINUTES * 60 ))
     if [ $(( now - last )) -ge "$silence" ]; then
-        link="$(rclone link "$DEST$subdir/$name" 2>>"$LOG")"
+        link="$(rclone link "$DEST$subdir/$name" \
+                --contimeout 20s --timeout 30s 2>>"$LOG")"
         hora="$(date -r "$event_ts" '+%H:%M' 2>/dev/null || date '+%H:%M')"
         durr="$(awk "BEGIN{printf \"%d\", $dur+0.5}" 2>/dev/null || echo '?')"
         "$HERE/bin/ojota-notify.sh" 4 "eyes,movie" "🩴 Ojo, movimiento en casa" \

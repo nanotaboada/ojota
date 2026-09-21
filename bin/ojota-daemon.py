@@ -554,7 +554,13 @@ class Daemon:
                "-f", "concat", "-safe", "0", "-i", listfile,
                "-map", "0", "-c", "copy", "-movflags", "+faststart",
                "-fflags", "+genpts", out]
-        rc = subprocess.run(cmd, capture_output=True, text=True)
+        try:
+            rc = subprocess.run(cmd, capture_output=True, text=True,
+                                timeout=30)
+        except subprocess.TimeoutExpired:
+            self.log.error("concat colgado, lo descarto (>30s)")
+            os.unlink(listfile)
+            return
         os.unlink(listfile)
         if rc.returncode != 0:
             self.log.error("concat falló: %s", rc.stderr.strip())

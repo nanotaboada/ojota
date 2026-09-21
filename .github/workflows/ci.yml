@@ -30,3 +30,9 @@ jobs:
 
       - name: Byte-compile the daemon
         run: python -m py_compile bin/ojota-daemon.py bin/ojota-tune.py
+
+      - name: Install Python dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run daemon tests
+        run: python tests/test_daemon.py
