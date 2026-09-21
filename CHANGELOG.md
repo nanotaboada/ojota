@@ -4,6 +4,15 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 
 ## [Unreleased]
 
+### Changed
+
+- `INSTANT_NOTIFY_DELAY_SECONDS`: 45s → 120s (igual a
+  `RETURN_GRACE_SECONDS`, a propósito). Con una reconexión real del
+  celu de 71s (vista hoy), el margen de 45s no alcanzó y salieron los
+  dos avisos de "movimiento" de tu propia llegada (el instantáneo y el
+  del hook con foto — comparten la misma constante). Con 120s, las dos
+  ventanas se cierran juntas.
+
 ### Added
 
 - **`tests/test_daemon.py`**: tests puntuales (sin pytest, asserts

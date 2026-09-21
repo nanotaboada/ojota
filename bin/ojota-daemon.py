@@ -85,7 +85,7 @@ class Conf:
         self.cam_down_min = float(d.get("CAMERA_DOWN_ALERT_MINUTES", 5))
         self.notify_silence_min = float(d.get("NOTIFY_SILENCE_MINUTES", 5))
         self.instant_notify_delay_s = float(
-            d.get("INSTANT_NOTIFY_DELAY_SECONDS", 45))
+            d.get("INSTANT_NOTIFY_DELAY_SECONDS", 120))
         self.live_upload = d.get("LIVE_UPLOAD", "1") == "1"
         self.pending_retry_min = float(d.get("PENDING_RETRY_MINUTES", 3))
         self.retention_check_h = float(d.get("RETENTION_CHECK_HOURS", 24))

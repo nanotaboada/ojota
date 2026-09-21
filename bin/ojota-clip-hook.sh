@@ -20,7 +20,7 @@ CONF="${OJOTA_CONF:-$HERE/config/ojota.conf}"
 : "${RCLONE_PATH:=ojota}"
 : "${NOTIFY_SILENCE_MINUTES:=5}"
 : "${OJOTA_NOTIFY:=1}"
-: "${INSTANT_NOTIFY_DELAY_SECONDS:=45}"
+: "${INSTANT_NOTIFY_DELAY_SECONDS:=120}"
 
 LOG="$HERE/logs/ojota-hook.log"
 NOTIFY_STATE="$HERE/clips/.last_notify"
