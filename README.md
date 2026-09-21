@@ -360,7 +360,9 @@ avisar hasta que probás "Test!" o te toca un corte real.
   tiempo del esperado sin frames (3x ese valor) estando armado, y mata
   el proceso de ffmpeg del detector a la fuerza — cubre el caso de que
   el hilo quede trabado en algún punto que ese timeout no llegue a
-  cubrir.
+  cubrir. Además, al terminar cualquier proceso (`SIGTERM`), si no
+  muere en 10s se escala a `SIGKILL` con otro límite de 10s — nunca se
+  espera para siempre a que un proceso se cierre.
 - **"No route to host" en el log del servicio**: el daemon no corre como
   root (Local Network Privacy de Sequoia). Reinstalá con `sudo bin/ojota
   install` — el plist actual ya corre como root.

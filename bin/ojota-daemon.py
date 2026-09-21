@@ -349,12 +349,24 @@ class Daemon:
                 handler(p)
             except Exception as exc:  # noqa: BLE001
                 self.log.error("%s: handler cortó: %s", name, exc)
-            if name == "detector":
-                self.detector_proc = None
             p.poll()
             if p.returncode is None:
                 p.terminate()
-            rc = p.wait()
+                try:
+                    rc = p.wait(timeout=10)
+                except subprocess.TimeoutExpired:
+                    self.log.warning(
+                        "%s: no murió con SIGTERM en 10s, SIGKILL", name)
+                    p.kill()
+                    try:
+                        rc = p.wait(timeout=10)
+                    except subprocess.TimeoutExpired:
+                        self.log.error("%s: no murió ni con SIGKILL", name)
+                        rc = None
+            else:
+                rc = p.returncode
+            if name == "detector":
+                self.detector_proc = None
             self.procs.remove(p)
             if self.stop.is_set():
                 return

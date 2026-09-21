@@ -31,6 +31,16 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
   `DETECT_STALL_SECONDS`) y mata el proceso de ffmpeg del detector a
   la fuerza si es así — no depende de que el hilo trabado coopere,
   solo mira el reloj.
+- **Tercera causa encontrada**: `p.wait()` en la limpieza de `_supervise`
+  (tras mandar SIGTERM) no tenía timeout — si ffmpeg no moría con
+  SIGTERM, esa espera podía ser indefinida, y justo ahí el hilo ya
+  había soltado la referencia que el watchdog necesita para actuar
+  (quedaba "ciego" en esa ventana). Visto en producción: el proceso
+  jamás volvió a "iniciando detector" tras un ciclo, sin que el
+  watchdog actuara. Ahora `p.wait()` tiene timeout (10s) y escala a
+  SIGKILL si no alcanza, con otro timeout acotado — nunca bloquea para
+  siempre. Aplica a segmentador y detector por igual. Probado aislado
+  (proceso que ignora SIGTERM escala a SIGKILL en el tiempo acotado).
 
 ### Added (docs)
 
