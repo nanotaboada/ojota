@@ -59,15 +59,16 @@ NTFY_TOPIC="ojota-CAMBIAR-POR-UNO-ALEATORIO"
 NOTIFY_SILENCE_MINUTES=5    # tras avisar, no volver a avisar por N min.
                            # SOLO afecta las notificaciones: el video se
                            # graba y sube igual.
-INSTANT_NOTIFY_DELAY_SECONDS=120  # el aviso instantáneo (y el del hook,
+INSTANT_NOTIFY_DELAY_SECONDS=180  # el aviso instantáneo (y el del hook,
                            # que usa la misma constante) se difiere N s:
                            # si en ese lapso la presencia te reconoce
                            # (volviste), se cancela. Igual a
                            # RETURN_GRACE_SECONDS a propósito — las dos
                            # ventanas se cierran juntas. Cubre la
                            # latencia de reconexión del celu al WiFi al
-                           # entrar (vista entre 15s y 71s en pruebas
-                           # reales). 0 = avisar en el acto.
+                           # entrar (vista entre 15s y 150s en pruebas
+                           # reales — volver con compras tarda más).
+                           # 0 = avisar en el acto.
 CAMERA_DOWN_ALERT_MINUTES=5 # alerta (prioridad alta) si la cámara no
                            # responde por N min
 EVENT_BURST_COUNT=10        # si hay ≥ N eventos en EVENT_BURST_MINUTES,
@@ -80,7 +81,7 @@ EVENT_BURST_MINUTES=15      # manda una alerta "muchos eventos" (algo raro)
 PHONE_IP=""
 PRESENCE_POLL_SECONDS=10
 PRESENCE_AWAY_MINUTES=2    # sin ver el celu N min → armar
-RETURN_GRACE_SECONDS=120   # al volver, los clips de estos últimos N s se
+RETURN_GRACE_SECONDS=180   # al volver, los clips de estos últimos N s se
                           # archivan en probablemente-vos/ sin notificar
                           # (sos vos entrando). No se borran.
 

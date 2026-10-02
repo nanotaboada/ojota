@@ -164,7 +164,7 @@ Todo en `config/ojota.conf` (formato `KEY=VALUE`, lo leen bash y Python).
 | `DEFAULT_PROFILE` | `armado` | Estado al bootear si no hay `config/profile` (`armado` = vigilando) |
 | `NTFY_TOPIC` | — | Topic de ntfy.sh (secreto, generar aleatorio) |
 | `NOTIFY_SILENCE_MINUTES` | 5 | Ventana anti-spam de notificaciones |
-| `INSTANT_NOTIFY_DELAY_SECONDS` | 120 | El aviso instantáneo (y el del hook, si hay `PHONE_IP`) se difiere N s; se cancela si volvés en ese lapso. Igual a `RETURN_GRACE_SECONDS` a propósito |
+| `INSTANT_NOTIFY_DELAY_SECONDS` | 180 | El aviso instantáneo (y el del hook, si hay `PHONE_IP`) se difiere N s; se cancela si volvés en ese lapso. Igual a `RETURN_GRACE_SECONDS` a propósito |
 | `CAMERA_DOWN_ALERT_MINUTES` | 5 | Alerta si la cámara no responde por N min |
 | `EVENT_BURST_COUNT` / `EVENT_BURST_MINUTES` | 10 / 15 | Alerta "muchos eventos" si se acumulan |
 | `RCLONE_REMOTE` / `RCLONE_PATH` | `gdrive` / `ojota` | Destino en Drive |
@@ -179,7 +179,7 @@ Todo en `config/ojota.conf` (formato `KEY=VALUE`, lo leen bash y Python).
 | `PHONE_IP` | — | IP del celu para el auto-armado por presencia; vacío = off |
 | `PRESENCE_POLL_SECONDS` | 10 | Cada cuánto se pinguea el celu |
 | `PRESENCE_AWAY_MINUTES` | 2 | Sin ver el celu N min → Ojota vigila |
-| `RETURN_GRACE_SECONDS` | 120 | Al volver, clips de estos últimos N s → `probablemente-vos/` |
+| `RETURN_GRACE_SECONDS` | 180 | Al volver, clips de estos últimos N s → `probablemente-vos/` |
 
 ---
 

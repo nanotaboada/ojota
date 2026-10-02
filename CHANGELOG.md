@@ -12,6 +12,12 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
   dos avisos de "movimiento" de tu propia llegada (el instantáneo y el
   del hook con foto — comparten la misma constante). Con 120s, las dos
   ventanas se cierran juntas.
+- `INSTANT_NOTIFY_DELAY_SECONDS` y `RETURN_GRACE_SECONDS`: 120s → 180s.
+  Volver con compras tardó ~150s desde el primer movimiento hasta que
+  el celu reconectó al WiFi — superó el margen de 120s y salió un
+  aviso de "movimiento" de tu propia llegada (el resto de los clips de
+  esa misma vuelta sí se archivaron bien en `probablemente-vos/`).
+  Las dos constantes siguen iguales a propósito.
 
 ### Added
 
