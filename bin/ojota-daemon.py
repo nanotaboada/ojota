@@ -72,6 +72,7 @@ class Conf:
         self.area_pct = float(d.get("MOTION_AREA_PCT", 1.5))
         self.min_frames = int(d.get("MOTION_MIN_FRAMES", 3))
         self.light_pct = float(d.get("LIGHT_CHANGE_PCT", 70))
+        self.exposure_shift = float(d.get("EXPOSURE_SHIFT_LEVELS", 3))
         self.warmup_s = float(d.get("DETECT_WARMUP_SECONDS", 10))
         self.detect_stall_s = float(d.get("DETECT_STALL_SECONDS", 20))
         self.roi = _parse_roi(d.get("DETECT_ROI", "0,0,1,1"))
@@ -427,14 +428,16 @@ class Daemon:
                 prev = cur
                 continue
             if prev is not None and prev.shape == cur.shape:
-                changed = int(np.count_nonzero(
-                    np.abs(cur - prev) > self.c.pixel_delta))
-                pct = changed / cur.size * 100.0
-                if pct >= self.c.light_pct:
+                kind, pct, shift = _classify_frame(prev, cur, self.c)
+                if kind == "light":
                     if motion_streak:
                         self.log.info("cambio de luz (%.1f%%), ignoro", pct)
                     motion_streak = 0
-                elif pct >= self.c.area_pct:
+                elif kind == "exposure":
+                    self.log.info("cambio de exposición (%.1f%%, mediana "
+                                  "%+.0f), ignoro", pct, shift)
+                    motion_streak = 0
+                elif kind == "motion":
                     motion_streak += 1
                     if motion_streak >= self.c.min_frames:
                         self._on_motion(now, pct)
@@ -867,6 +870,24 @@ class Daemon:
 
     def shutdown(self, *_):
         self.stop.set()
+
+
+def _classify_frame(prev, cur, c):
+    """Devuelve (tipo, pct, mediana) para un par de frames int16.
+    "exposure": la cámara reajustó brillo/contraste (auto-exposición al
+    atardecer) — casi todos los píxeles se corren para el mismo lado y la
+    mediana de la diferencia se mueve. Una persona ocupa una parte
+    minoritaria del cuadro y deja la mediana en ~0."""
+    diff = cur - prev
+    pct = np.count_nonzero(np.abs(diff) > c.pixel_delta) / diff.size * 100.0
+    if pct >= c.light_pct:
+        return "light", pct, 0.0
+    if pct < c.area_pct:
+        return "still", pct, 0.0
+    shift = float(np.median(diff))
+    if c.exposure_shift > 0 and abs(shift) >= c.exposure_shift:
+        return "exposure", pct, shift
+    return "motion", pct, shift
 
 
 class _ReadStalled(Exception):

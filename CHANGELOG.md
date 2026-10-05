@@ -21,6 +21,16 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 
 ### Added
 
+- **Filtro de auto-exposición** (`EXPOSURE_SHIFT_LEVELS`, default 3).
+  Al atardecer la cámara baja el brillo en escalones cada ~60s y cada
+  escalón cambiaba ~40% de los píxeles (pared y mesada): por debajo
+  del umbral de luz (70%), así que contaba como movimiento. Hubo 9
+  falsos positivos en 20 min. Ahora, si la mediana de la diferencia
+  entre frames se corre ≥ N niveles, el frame se ignora y se loguea
+  (`cambio de exposición`). Validado offline contra 25 clips reales
+  etiquetados: 0/9 falsos positivos y 16/16 llegadas detectadas,
+  incluso con una racha de 2 frames (más sensible que la real).
+  Test sintético nuevo en `tests/test_daemon.py`.
 - **`tests/test_daemon.py`**: tests puntuales (sin pytest, asserts
   simples) para los mecanismos de timeout que ya se colgaron alguna
   vez en producción — lectura de frames, limpieza de procesos

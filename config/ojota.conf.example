@@ -21,6 +21,10 @@ MOTION_AREA_PCT=1.5         # % de píxeles cambiados para disparar evento
 MOTION_MIN_FRAMES=3         # frames seguidos sobre el umbral para disparar
 LIGHT_CHANGE_PCT=70         # si cambia más que esto de golpe = cambio de
                            # luz (IR día/noche, luz que se prende): ignorar
+EXPOSURE_SHIFT_LEVELS=3     # si la mediana de la diferencia entre frames se
+                           # corre ≥ N niveles = la cámara reajustó la
+                           # exposición (escalones cada ~60s al atardecer),
+                           # no es alguien: ignorar. 0 = desactivado
 DETECT_WARMUP_SECONDS=15    # ignorar movimiento los primeros N s tras
                            # (re)conectar: el H.264 tarda en estabilizar
 DETECT_STALL_SECONDS=20    # si ffmpeg deja de mandar frames sin cerrar la

@@ -71,7 +71,10 @@ flowchart TB
 - **La detección** corre sobre el substream en gris a 3 fps: ~2-3% de un
   núcleo. Dispara cuando N frames seguidos (`MOTION_MIN_FRAMES`) superan
   `MOTION_AREA_PCT`; un cambio de casi toda la imagen se toma como cambio
-  de luz (`LIGHT_CHANGE_PCT`) y se ignora.
+  de luz (`LIGHT_CHANGE_PCT`) y se ignora. Los reajustes de exposición de
+  la cámara (al atardecer baja el brillo en escalones) corren casi todos
+  los píxeles para el mismo lado; una persona no. Si la mediana de la
+  diferencia se mueve ≥ `EXPOSURE_SHIFT_LEVELS`, el frame no cuenta.
 
 ---
 
@@ -153,6 +156,7 @@ Todo en `config/ojota.conf` (formato `KEY=VALUE`, lo leen bash y Python).
 | `MOTION_AREA_PCT` | 1.5 | % de píxeles cambiados para disparar |
 | `MOTION_MIN_FRAMES` | 3 | Frames seguidos sobre el umbral para disparar |
 | `LIGHT_CHANGE_PCT` | 70 | Cambio ≥ esto = cambio de luz, se ignora |
+| `EXPOSURE_SHIFT_LEVELS` | 3 | Mediana de la diferencia ≥ esto = reajuste de exposición, se ignora; 0 = off |
 | `DETECT_WARMUP_SECONDS` | 15 | Ignorar movimiento los primeros N s tras conectar |
 | `DETECT_STALL_SECONDS` | 20 | Si ffmpeg deja de mandar frames sin caerse, reconectar tras N s |
 | `DETECT_ROI` | `0,0,1,1` | Zona de detección (izq,arr,der,ab en fracciones). No recorta el video. |
@@ -355,6 +359,9 @@ avisar hasta que probás "Test!" o te toca un corte real.
 - **No detecta / detecta de más**: `ojota-tune.py`, mirar los % con y sin
   movimiento, ajustar `PIXEL_DELTA` y `MOTION_AREA_PCT`.
 - **Falsos positivos por luz**: bajar `LIGHT_CHANGE_PCT` o acotar `DETECT_ROI`.
+  Si son al atardecer y espaciados regularmente (~60s), es la
+  auto-exposición: buscar `cambio de exposición` en el log y bajar
+  `EXPOSURE_SHIFT_LEVELS` si alguno se coló.
 - **La cámara se cae**: el daemon reintenta con backoff exponencial y manda
   una alerta si no hay frames por `CAMERA_DOWN_ALERT_MINUTES`. Si ffmpeg se
   cuelga sin cerrar la conexión (se queda sin mandar datos pero no cae),

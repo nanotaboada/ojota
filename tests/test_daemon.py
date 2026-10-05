@@ -117,7 +117,42 @@ def test_watchdog_kill_decision():
     check("watchdog: no mata si está desarmado", not paused.killed)
 
 
+def test_classify_frame():
+    """Escena sintética: pared clara a la derecha, zona oscura a la
+    izquierda (como la cámara real)."""
+    import numpy as np
+    c = mod.Conf({"RTSP_URL": "x"})
+    rng = np.random.default_rng(0)
+    prev = np.full((180, 320), 200, np.int16)
+    prev[:, :100] = 40
+    prev += rng.integers(-3, 4, prev.shape).astype(np.int16)
+
+    noise = prev + rng.integers(-3, 4, prev.shape).astype(np.int16)
+    check("clasifica: ruido de sensor = quieto",
+          mod._classify_frame(prev, noise, c)[0] == "still")
+
+    person = prev.copy()
+    person[40:170, 150:200] = 60
+    check("clasifica: persona (12% del cuadro) = movimiento",
+          mod._classify_frame(prev, person, c)[0] == "motion")
+
+    exposure = prev.copy()
+    exposure[prev > 100] -= 30
+    check("clasifica: auto-exposición (solo la pared se oscurece) = "
+          "exposición", mod._classify_frame(prev, exposure, c)[0] == "exposure")
+
+    light = 255 - prev
+    check("clasifica: cambio de casi todo el cuadro = luz",
+          mod._classify_frame(prev, light, c)[0] == "light")
+
+    off = mod.Conf({"RTSP_URL": "x", "EXPOSURE_SHIFT_LEVELS": "0"})
+    check("clasifica: EXPOSURE_SHIFT_LEVELS=0 desactiva el filtro",
+          mod._classify_frame(prev, exposure, off)[0] == "motion")
+
+
 if __name__ == "__main__":
+    print("test_classify_frame")
+    test_classify_frame()
     print("test_read_exact_stalls_on_silence")
     test_read_exact_stalls_on_silence()
     print("test_read_exact_reads_normally")
