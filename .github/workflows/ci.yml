@@ -24,7 +24,7 @@ jobs:
         run: shellcheck --severity=warning bin/ojota bin/*.sh
 
       - name: Set up Python
-        uses: actions/setup-python@v7.0.0
+        uses: actions/setup-python@v7.1.0
         with:
           python-version-file: ".python-version"
 
