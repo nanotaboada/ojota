@@ -4,6 +4,11 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-11-05
+
+Pasaje a producción: inicio formal del sistema tras semanas de
+funcionamiento estable con la cámara real.
+
 ### Changed
 
 - `INSTANT_NOTIFY_DELAY_SECONDS`: 45s → 120s (igual a
@@ -232,5 +237,6 @@ afinar la detección con uso real.
   presencia te reconoce — cubre la latencia de reconexión del celu al
   WiFi al entrar, que hacía llegar 2 avisos de tu propia llegada.
 
-[Unreleased]: https://github.com/nanotaboada/ojota/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/nanotaboada/ojota/compare/v1.0.0...HEAD
+[1.0.0]: https://github.com/nanotaboada/ojota/compare/v0.1.0...v1.0.0
 [0.1.0]: https://github.com/nanotaboada/ojota/releases/tag/v0.1.0
